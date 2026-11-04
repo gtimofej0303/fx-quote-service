@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info: {title: fx-quote-service, version: 1.0.0, description: 'Asynchronous exchange-rate quotes for USD, EUR and
+    EGP. A/B means units of B per unit of A.'}
+servers:
+- {url: 'http://localhost:8080', description: Local application}
+tags:
+- {name: Quote updates}
+- {name: Quotes}
+- {name: Health}
+security: []
+paths:
+  /api/v1/quote-updates:
+    post:
+      tags: [Quote updates]
+      operationId: requestQuoteUpdate
+      summary: Request a quote update
+      description: Creates an update and returns its ID without waiting for the quote.
+      parameters:
+      - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateRequest'}
+            example: {pair: EUR/EGP}
+        description: JSON body, up to 4096 bytes.
+      responses:
+        '202':
+          description: Update accepted
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Location:
+              description: URL for checking the update
+              schema: {type: string, pattern: '^/api/v1/quote-updates/[1-9][0-9]*$'}
+              example: /api/v1/quote-updates/1
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UpdateAccepted'}
+              example: {id: 1}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/IdempotencyConflict'}
+        '413': {$ref: '#/components/responses/RequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnsupportedPair'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/quote-updates/{id}:
+    get:
+      tags: [Quote updates]
+      operationId: getQuoteUpdate
+      summary: Get a job and its result
+      description: Poll until the state is succeeded or failed. Failed jobs also return HTTP 200.
+      parameters:
+      - {$ref: '#/components/parameters/UpdateId'}
+      responses:
+        '200':
+          description: Update state and result
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Update'}
+              example:
+                id: 1
+                pair: EUR/EGP
+                status: succeeded
+                created_at: '2026-11-04T10:00:00Z'
+                completed_at: '2026-11-04T10:00:02Z'
+                price: '61.96'
+                updated_at: '2026-11-04T10:00:01Z'
+                source_date: '2026-11-03'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/UpdateNotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/quotes/latest:
+    get:
+      tags: [Quotes]
+      operationId: getLatestQuote
+      summary: Get the latest successful quote
+      description: Returns the latest saved quote by source date, then retrieval time. Returns 404 if none is available.
+      parameters:
+      - {$ref: '#/components/parameters/Pair'}
+      responses:
+        '200':
+          description: Latest successful quote
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LatestQuote'}
+              example: {update_id: 1, pair: EUR/EGP, price: '61.96', updated_at: '2026-11-04T10:00:01Z', source_date: '2026-11-03'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/QuoteNotFound'}
+        '422': {$ref: '#/components/responses/UnsupportedPair'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Check liveness
+      responses:
+        '200':
+          description: Process is running
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+              example: {status: ok}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Check readiness
+      description: Returns 503 when the service is not ready to accept requests.
+      responses:
+        '200':
+          description: Application is ready
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+              example: {status: ok}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Reuse a key to receive the same update ID for the same pair. Keys do not expire.
+        Using the key for a different pair returns 409. Without a key, each request creates
+        an update. Empty, invalid or duplicate keys return 400.
+      schema: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
+      example: operation-123
+    UpdateId:
+      name: id
+      in: path
+      required: true
+      description: Update ID without a sign or leading zeros
+      schema: {$ref: '#/components/schemas/Id'}
+      example: 1
+    Pair:
+      name: pair
+      in: query
+      required: true
+      description: Two different supported currencies
+      schema: {$ref: '#/components/schemas/PairInput'}
+      example: EUR/EGP
+  headers:
+    RequestId:
+      description: Request identifier for troubleshooting
+      schema: {type: string, format: uuid}
+      example: c4e6cda9-5084-42c9-ae49-786018377ed1
+  schemas:
+    Id: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807, example: 1}
+    PairInput: {type: string, description: Case-insensitive pair; surrounding whitespace is ignored, pattern: '^\s*[A-Za-z]{3}/[A-Za-z]{3}\s*$',
+      example: EUR/EGP}
+    Pair: {type: string, enum: [USD/EUR, USD/EGP, EUR/USD, EUR/EGP, EGP/USD, EGP/EUR], example: EUR/EGP}
+    Price: {type: string, description: Positive decimal rate, pattern: '^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$',
+      example: '61.96'}
+    UtcTime: {type: string, format: date-time, description: UTC timestamp, pattern: Z$, example: '2026-11-04T10:00:01Z'}
+    SourceDate: {type: string, format: date, description: Date of the source rate, example: '2026-11-03'}
+    UpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [pair]
+      properties:
+        pair: {$ref: '#/components/schemas/PairInput'}
+    UpdateAccepted:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+    Update:
+      oneOf:
+      - {$ref: '#/components/schemas/ActiveUpdate'}
+      - {$ref: '#/components/schemas/SucceededUpdate'}
+      - {$ref: '#/components/schemas/FailedUpdate'}
+      discriminator:
+        propertyName: status
+        mapping: {pending: '#/components/schemas/ActiveUpdate', processing: '#/components/schemas/ActiveUpdate',
+          succeeded: '#/components/schemas/SucceededUpdate', failed: '#/components/schemas/FailedUpdate'}
+    ActiveUpdate:
+      type: object
+      additionalProperties: false
+      required: [id, pair, status, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        pair: {$ref: '#/components/schemas/Pair'}
+        status: {type: string, enum: [pending, processing], description: pending includes waiting for a retry}
+        created_at: {$ref: '#/components/schemas/UtcTime'}
+    SucceededUpdate:
+      type: object
+      additionalProperties: false
+      required: [id, pair, status, created_at, completed_at, price, updated_at, source_date]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        pair: {$ref: '#/components/schemas/Pair'}
+        status: {type: string, enum: [succeeded]}
+        created_at: {$ref: '#/components/schemas/UtcTime'}
+        completed_at:
+          allOf:
+          - {$ref: '#/components/schemas/UtcTime'}
+          description: Job completion time
+        price: {$ref: '#/components/schemas/Price'}
+        updated_at:
+          allOf:
+          - {$ref: '#/components/schemas/UtcTime'}
+          description: Time the quote was retrieved
+        source_date: {$ref: '#/components/schemas/SourceDate'}
+    FailedUpdate:
+      type: object
+      additionalProperties: false
+      required: [id, pair, status, created_at, completed_at, error]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        pair: {$ref: '#/components/schemas/Pair'}
+        status: {type: string, enum: [failed]}
+        created_at: {$ref: '#/components/schemas/UtcTime'}
+        completed_at: {$ref: '#/components/schemas/UtcTime'}
+        error: {$ref: '#/components/schemas/UpdateFailure'}
+    UpdateFailure:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: {type: string, enum: [provider_timeout, provider_unavailable, provider_rate_limited, provider_rate_not_found,
+            provider_rejected_request, provider_invalid_response, processing_timeout]}
+        message: {type: string, minLength: 1, description: Error description}
+    LatestQuote:
+      type: object
+      additionalProperties: false
+      required: [update_id, pair, price, updated_at, source_date]
+      properties:
+        update_id: {$ref: '#/components/schemas/Id'}
+        pair: {$ref: '#/components/schemas/Pair'}
+        price: {$ref: '#/components/schemas/Price'}
+        updated_at: {$ref: '#/components/schemas/UtcTime'}
+        source_date: {$ref: '#/components/schemas/SourceDate'}
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: {type: string, enum: [invalid_json, invalid_pair, invalid_id, invalid_idempotency_key, invalid_request,
+                update_not_found, quote_not_found, route_not_found, method_not_allowed, idempotency_conflict, request_too_large,
+                unsupported_media_type, unsupported_pair, internal_error, service_unavailable]}
+            message: {type: string, minLength: 1, description: Error description}
+        request_id: {type: string, format: uuid, description: Matches X-Request-ID}
+      example:
+        error: {code: unsupported_pair, message: Currency pair is not supported}
+        request_id: c4e6cda9-5084-42c9-ae49-786018377ed1
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, enum: [ok]}
+  responses:
+    BadRequest:
+      description: Invalid JSON, fields, parameters, pair syntax, ID or idempotency key
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    UpdateNotFound:
+      description: 'update_not_found: no job with this ID'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    QuoteNotFound:
+      description: 'quote_not_found: no successful quote for this pair'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    IdempotencyConflict:
+      description: 'idempotency_conflict: key already used for a different pair'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    RequestTooLarge:
+      description: 'request_too_large: body exceeds 4096 bytes'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    UnsupportedMediaType:
+      description: 'unsupported_media_type: application/json is required'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    UnsupportedPair:
+      description: 'unsupported_pair: well-formed but unsupported currency pair'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    InternalError:
+      description: 'internal_error: unexpected application error'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    ServiceUnavailable:
+      description: 'service_unavailable: service is temporarily unavailable'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
