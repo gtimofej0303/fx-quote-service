@@ -59,7 +59,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		
+
 		return fmt.Errorf("HTTP server: %w", err)
 
 	case <-ctx.Done():

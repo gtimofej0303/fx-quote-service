@@ -1,1 +1,5 @@
 /implementation_plan.md
+.env
+.env.*
+!.env.example
+bin/
