@@ -44,8 +44,22 @@ func run() error {
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set migration dialect: %w", err)
 	}
-	if err := goose.UpContext(ctx, db, "."); err != nil {
-		return fmt.Errorf("apply migrations: %w", err)
+	
+	var errMigration error
+
+	switch {
+	case len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "up"):
+		errMigration = goose.UpContext(ctx, db, ".")
+
+	case len(os.Args) == 2 && os.Args[1] == "down":
+		errMigration = goose.DownContext(ctx, db, ".")
+
+	default:
+		return fmt.Errorf("usage: migrate [up|down]")
+	}
+
+	if errMigration != nil {
+		return fmt.Errorf("run migration: %w", errMigration)
 	}
 
 	logger.Info("database migrations applied")
