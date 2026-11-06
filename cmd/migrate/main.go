@@ -44,7 +44,7 @@ func run() error {
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set migration dialect: %w", err)
 	}
-	
+
 	var errMigration error
 
 	switch {

@@ -195,6 +195,6 @@ func (j UpdateJob) Validate() error {
 			return fmt.Errorf("%w: failed job requires completion and failure without lease", ErrInvalidJob)
 		}
 	}
-	
+
 	return nil
 }

@@ -73,6 +73,6 @@ func (p Price) Validate() error {
 	if parsed.value != p.value {
 		return fmt.Errorf("%w: price is not canonical", ErrInvalidPrice)
 	}
-	
+
 	return nil
 }

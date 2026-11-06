@@ -13,7 +13,7 @@ func ParseSourceDate(raw string) (SourceDate, error) {
 	if len(raw) != len("2006-01-02") || raw[4] != '-' || raw[7] != '-' {
 		return "", fmt.Errorf("%w: expected YYYY-MM-DD", ErrInvalidSourceDate)
 	}
-	
+
 	for i := range raw {
 		if i == 4 || i == 7 {
 			continue
@@ -103,6 +103,6 @@ func (q Quote) NewerThan(other Quote) bool {
 	if !q.UpdatedAt.Equal(other.UpdatedAt) {
 		return q.UpdatedAt.After(other.UpdatedAt)
 	}
-	
+
 	return q.UpdateID > other.UpdateID
 }

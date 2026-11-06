@@ -54,7 +54,7 @@ func (p CurrencyPair) Validate() error {
 	if len(value) != 7 || value[3] != '/' {
 		return fmt.Errorf("%w: expected AAA/BBB", ErrInvalidPair)
 	}
-	
+
 	for i := 0; i < len(value); i++ {
 		if i == 3 {
 			continue
