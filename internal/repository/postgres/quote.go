@@ -121,6 +121,6 @@ func (r *Repository) SaveSuccess(ctx context.Context, q quote.Quote, token strin
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit successful quote: %w", err)
 	}
-	
+
 	return nil
 }

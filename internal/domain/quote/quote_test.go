@@ -56,7 +56,7 @@ func TestQuoteValidationAndUTC(t *testing.T) {
 func TestQuoteRecencyOrdering(t *testing.T) {
 	price := mustPrice(t, "1.23")
 	old := Quote{UpdateID: 1, Pair: PairUSDEUR, Price: price, SourceDate: mustDate(t, "2026-11-02"), UpdatedAt: time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC)}
-	
+
 	newDate := old
 	newDate.SourceDate = mustDate(t, "2026-11-03")
 	newDate.UpdatedAt = old.UpdatedAt.Add(-24 * time.Hour)
@@ -75,7 +75,7 @@ func TestQuoteRecencyOrdering(t *testing.T) {
 	if old.NewerThan(otherPair) || otherPair.NewerThan(old) {
 		t.Fatal("different pairs must not be compared")
 	}
-	
+
 	newID := old
 	newID.UpdateID = 2
 	if !newID.NewerThan(old) || old.NewerThan(newID) || old.NewerThan(old) {

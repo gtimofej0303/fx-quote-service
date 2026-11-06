@@ -52,7 +52,7 @@ func scanJob(row rowScanner) (quote.UpdateJob, error) {
 	if token.Valid {
 		j.Lease = &quote.Lease{Token: token.String, Until: lockedUntil.Time.UTC()}
 	}
-	
+
 	if code.Valid {
 		j.Failure = &quote.UpdateFailure{Code: quote.FailureCode(code.String), Message: message.String}
 	}

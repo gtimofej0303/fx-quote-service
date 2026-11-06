@@ -92,6 +92,6 @@ func (r *Repository) GetJob(ctx context.Context, id int64) (quote.UpdateJob, err
 	if err != nil {
 		return quote.UpdateJob{}, fmt.Errorf("get job %d: %w", id, err)
 	}
-	
+
 	return job, nil
 }

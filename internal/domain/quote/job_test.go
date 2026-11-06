@@ -167,7 +167,7 @@ func TestNewPendingJobRejectsInvalidData(t *testing.T) {
 	}
 
 	bad := ""
-	
+
 	if _, err := NewPendingJob(1, PairUSDEUR, now, now, &bad); !errors.Is(err, ErrInvalidIdempotencyKey) {
 		t.Fatalf("invalid provided key: %v", err)
 	}

@@ -53,7 +53,7 @@ func (r *Repository) ClaimNext(ctx context.Context, duration time.Duration, maxA
 	if errors.Is(err, sql.ErrNoRows) {
 		return quote.UpdateJob{}, ErrNoClaimableJob
 	}
-	
+
 	if err != nil {
 		return quote.UpdateJob{}, fmt.Errorf("claim next job: %w", err)
 	}
@@ -73,7 +73,7 @@ func (r *Repository) RenewLease(ctx context.Context, id int64, token string, dur
 	}
 
 	var until time.Time
-	
+
 	err = r.db.QueryRowContext(ctx, `
 		UPDATE quote_updates
 		SET locked_until = statement_timestamp() + make_interval(secs => $3::int)
@@ -172,6 +172,6 @@ func checkLeaseUpdate(res sql.Result, err error, operation string) error {
 	if count != 1 {
 		return ErrLeaseLost
 	}
-	
+
 	return nil
 }
