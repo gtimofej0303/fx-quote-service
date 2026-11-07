@@ -110,7 +110,7 @@ func TestHealthEndpoints(t *testing.T) {
 			ready.Store(tt.setup.ready)
 
 			db := fakePinger{err: tt.setup.dbErr}
-			router := NewRouter(db, ready, logger)
+			router := NewRouter(db, ready, logger, &fakeQuoteService{})
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()

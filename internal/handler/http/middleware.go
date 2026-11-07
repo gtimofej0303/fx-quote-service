@@ -32,6 +32,7 @@ func requestMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 
 func requestIDFrom(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDContextKey{}).(string)
+
 	return id
 }
 
@@ -52,6 +53,7 @@ func (w *statusRecorder) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.WriteHeader(http.StatusOK)
 	}
+
 	return w.ResponseWriter.Write(data)
 }
 
@@ -59,6 +61,7 @@ func (w *statusRecorder) Status() int {
 	if w.status == 0 {
 		return http.StatusOK
 	}
+
 	return w.status
 }
 

@@ -38,6 +38,7 @@ paths:
               schema: {$ref: '#/components/schemas/UpdateAccepted'}
               example: {id: 1}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
         '409': {$ref: '#/components/responses/IdempotencyConflict'}
         '413': {$ref: '#/components/responses/RequestTooLarge'}
         '415': {$ref: '#/components/responses/UnsupportedMediaType'}
@@ -70,6 +71,7 @@ paths:
                 updated_at: '2026-11-04T10:00:01Z'
                 source_date: '2026-11-03'
         '400': {$ref: '#/components/responses/BadRequest'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
         '404': {$ref: '#/components/responses/UpdateNotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/ServiceUnavailable'}
@@ -91,6 +93,7 @@ paths:
               schema: {$ref: '#/components/schemas/LatestQuote'}
               example: {update_id: 1, pair: EUR/EGP, price: '61.96', updated_at: '2026-11-04T10:00:01Z', source_date: '2026-11-03'}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
         '404': {$ref: '#/components/responses/QuoteNotFound'}
         '422': {$ref: '#/components/responses/UnsupportedPair'}
         '500': {$ref: '#/components/responses/InternalError'}
@@ -110,6 +113,7 @@ paths:
               schema: {$ref: '#/components/schemas/Health'}
               example: {status: ok}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
   /health/ready:
     get:
       tags: [Health]
@@ -126,6 +130,7 @@ paths:
               schema: {$ref: '#/components/schemas/Health'}
               example: {status: ok}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
         '503': {$ref: '#/components/responses/ServiceUnavailable'}
 components:
   parameters:
@@ -136,7 +141,7 @@ components:
       description: |
         Reuse a key to receive the same update ID for the same pair. Keys do not expire.
         Using the key for a different pair returns 409. Without a key, each request creates
-        an update. Empty, invalid or duplicate keys return 400.
+        an update. Empty or invalid keys, and multiple occurrences of the header, return 400.
       schema: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
       example: operation-123
     UpdateId:
@@ -274,6 +279,16 @@ components:
       description: Invalid JSON, fields, parameters, pair syntax, ID or idempotency key
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    MethodNotAllowed:
+      description: 'method_not_allowed: this route does not support the HTTP method'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Allow:
+          description: Supported HTTP method for this route
+          schema: {type: string}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}

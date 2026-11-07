@@ -13,6 +13,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/config"
 	httptransport "github.com/gtimofej0303/fx-quote-service/internal/handler/http"
 	"github.com/gtimofej0303/fx-quote-service/internal/repository/postgres"
+	quoteservice "github.com/gtimofej0303/fx-quote-service/internal/service/quote"
 )
 
 func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
@@ -35,8 +36,14 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 	defer listener.Close()
 
+	repo := postgres.New(db)
+	quoteSvc, err := quoteservice.New(repo)
+	if err != nil {
+		return fmt.Errorf("initialize quote service: %w", err)
+	}
+
 	ready := &atomic.Bool{}
-	handler := httptransport.NewRouter(db, ready, logger)
+	handler := httptransport.NewRouter(db, ready, logger, quoteSvc)
 	server := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
