@@ -122,6 +122,6 @@ func (s *Service) GetLatestQuote(ctx context.Context, rawPair string) (domain.Qu
 	if q.Pair != pair {
 		return domain.Quote{}, fmt.Errorf("%w: latest quote pair %s, expected %s", ErrInconsistentResult, q.Pair, pair)
 	}
-	
+
 	return q, nil
 }

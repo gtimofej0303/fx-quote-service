@@ -130,7 +130,7 @@ func classifyProviderError(err error) (ProcessResult, error) {
 	}
 
 	failure := domain.UpdateFailure{Code: code, Message: message}
-	
+
 	return ProcessResult{Failure: &failure, Retryable: true}, nil
 }
 
