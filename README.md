@@ -18,7 +18,7 @@ The API has three main endpoints:
 
 ## Quick Start
 
-You need **Git** and **Docker with Docker Compose**. You do not need to install Go or PostgreSQL. Run the commands below in Bash (Git Bash on Windows).
+You need **Git** and **Docker with Docker Compose**. You do not need to install Go or PostgreSQL. Run the commands below in a Bash-compatible terminal (Git Bash on Windows, Bash on Linux or macOS).
 
 **1. Clone the project.**
 
@@ -43,7 +43,7 @@ docker compose up --build -d
 
 ```bash
 docker compose ps
-curl http://localhost:8080/health/ready
+curl -sS -w '\n' http://localhost:8080/health/ready
 ```
 
 The health request should return `{"status":"ok"}`.
@@ -95,7 +95,7 @@ Run these commands while the service is running.
 **1. Request an update.** Send a currency pair as JSON:
 
 ```bash
-curl -i -X POST http://localhost:8080/api/v1/quote-updates \
+curl -sS -i -w '\n' -X POST http://localhost:8080/api/v1/quote-updates \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: eur-egp-demo-1' \
   -d '{"pair":"EUR/EGP"}'
@@ -110,7 +110,7 @@ Use a new key when you intentionally request another update. Keys do not expire.
 **2. Check the update.** Replace `1` with the ID from your response:
 
 ```bash
-curl http://localhost:8080/api/v1/quote-updates/1
+curl -sS -w '\n' http://localhost:8080/api/v1/quote-updates/1
 ```
 
 The status can be `pending`, `processing`, `succeeded`, or `failed`. When it succeeds, the response includes `price`, `updated_at`, and `source_date`. The price is a string to keep its decimal precision.
@@ -118,7 +118,7 @@ The status can be `pending`, `processing`, `succeeded`, or `failed`. When it suc
 **3. Get the latest saved rate.**
 
 ```bash
-curl 'http://localhost:8080/api/v1/quotes/latest?pair=EUR%2FEGP'
+curl -sS -w '\n' 'http://localhost:8080/api/v1/quotes/latest?pair=EUR%2FEGP'
 ```
 
 The response includes the latest price and update time for `EUR/EGP`, ordered by source date and then retrieval time. If no successful update exists for this pair yet, the API returns `404 Not Found`.
