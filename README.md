@@ -18,7 +18,7 @@ The API has three main endpoints:
 
 ## Quick Start
 
-You need **Git** and **Docker with Docker Compose**. You do not need to install Go or PostgreSQL.
+You need **Git** and **Docker with Docker Compose**. You do not need to install Go or PostgreSQL. Run the commands below in Bash (Git Bash on Windows).
 
 **1. Clone the project.**
 
@@ -48,16 +48,39 @@ curl http://localhost:8080/health/ready
 
 The health request should return `{"status":"ok"}`.
 
-**5. Run the tests.** This command runs Go unit tests and static checks inside Docker:
+**5. Run unit tests and static checks.** These run inside Docker:
 
 ```bash
-docker run --rm -v "$PWD:/app" -w /app golang:1.27.3-alpine \
+MSYS_NO_PATHCONV=1 docker run --rm \
+  -v "$(pwd -W 2>/dev/null || pwd):/app" -w /app golang:1.27.3-alpine \
   sh -c 'go test ./... && go vet ./...'
 ```
 
 The first run may take longer because Docker downloads the Go image and project packages. CI also runs integration and end-to-end tests.
 
-**6. Stop the service when you are done.** Try the API examples below before stopping it.
+**6. Optional: run integration and E2E tests with PostgreSQL.** Keep Docker Compose running. Create a separate test database once (skip this command if it already exists):
+
+```bash
+docker compose exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" fxquote_test'
+```
+
+Run the migrations and both test suites inside Docker:
+
+```bash
+set -a; source <(sed 's/\r$//' .env); set +a
+MSYS_NO_PATHCONV=1 docker run --rm --network "container:$(docker compose ps -q postgres)" \
+  -v "$(pwd -W 2>/dev/null || pwd):/app" -w /app \
+  -e PGUSER="$POSTGRES_USER" -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  -e TEST_DATABASE_URL='postgres://127.0.0.1:5432/fxquote_test?sslmode=disable' \
+  golang:1.27.3-alpine \
+  sh -c 'DATABASE_URL="$TEST_DATABASE_URL" go run ./cmd/migrate up &&
+    go test -tags=integration -count=1 ./tests/integration &&
+    go test -tags=e2e -count=1 ./tests/e2e'
+```
+
+These suites **reset data in `fxquote_test`** and must run sequentially. Never use the application database for tests. The password is passed separately from the URL so special characters remain literal.
+
+**7. Stop the service when you are done.** Try the API examples below before stopping it.
 
 ```bash
 docker compose down
@@ -98,7 +121,7 @@ The status can be `pending`, `processing`, `succeeded`, or `failed`. When it suc
 curl 'http://localhost:8080/api/v1/quotes/latest?pair=EUR%2FEGP'
 ```
 
-The response includes the latest price and update time for `EUR/EGP`. If no successful update exists for this pair yet, the API returns `404 Not Found`.
+The response includes the latest price and update time for `EUR/EGP`, ordered by source date and then retrieval time. If no successful update exists for this pair yet, the API returns `404 Not Found`.
 
 ## Project Structure
 
@@ -124,7 +147,7 @@ The response includes the latest price and update time for `EUR/EGP`. If no succ
 3. The worker saves the result and changes the job status to `succeeded` or `failed`.
 4. You can check the job by its ID or read the latest saved rate for a pair.
 
-**The API does not wait for the exchange rate.** It creates a job, and a background worker processes it. Workers use database locks to avoid processing the same job at the same time. Temporary provider errors can be retried up to three attempts.
+**The API does not wait for the exchange rate.** It creates a job, and a background worker processes it. Workers use database locks to avoid processing the same job at the same time. Temporary provider errors can be retried, with up to three attempts in total; a valid `Retry-After` on provider HTTP 429/503 responses can postpone the next attempt.
 
 ## Common Issues
 
