@@ -21,7 +21,11 @@ func Load() (Config, error) {
 	}
 
 	if cfg.DatabaseURL == "" {
-		return Config{}, fmt.Errorf("DATABASE_URL must be set")
+		for _, name := range []string{"PGHOST", "PGUSER", "PGDATABASE"} {
+			if os.Getenv(name) == "" {
+				return Config{}, fmt.Errorf("set DATABASE_URL or PostgreSQL environment variables: missing %s", name)
+			}
+		}
 	}
 	if _, _, err := net.SplitHostPort(cfg.HTTPAddr); err != nil {
 		return Config{}, fmt.Errorf("invalid HTTP_ADDR %q: %w", cfg.HTTPAddr, err)

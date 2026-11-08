@@ -85,6 +85,17 @@ func (q Quote) Validate() error {
 		return fmt.Errorf("%w: missing retrieval timestamp", ErrInvalidQuote)
 	}
 
+	// Allow one calendar day for source time zones ahead of UTC. Compare to
+	// the recorded retrieval time so historical validation never changes.
+	sourceDay, _ := time.Parse("2006-01-02", q.SourceDate.String()) // validated above
+	retrieved := q.UpdatedAt.UTC()
+
+	latestAllowed := time.Date(retrieved.Year(), retrieved.Month(), retrieved.Day(),
+		0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
+	if sourceDay.After(latestAllowed) {
+		return fmt.Errorf("%w: source date exceeds retrieval date tolerance", ErrInvalidQuote)
+	}
+
 	return nil
 }
 

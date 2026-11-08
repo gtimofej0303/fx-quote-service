@@ -80,6 +80,10 @@ curl -i -X POST http://localhost:8080/api/v1/quote-updates \
 
 The API returns `202 Accepted` with a body like `{"id":1}`. It means the job was created, **not** that the rate is ready. The optional `Idempotency-Key` helps prevent duplicate jobs if you send the same request again.
 
+If a POST returns `503` or the connection breaks before you receive the ID, retry
+with the **same key and pair**. The first attempt may already have saved the job.
+Use a new key when you intentionally request another update. Keys do not expire.
+
 **2. Check the update.** Replace `1` with the ID from your response:
 
 ```bash

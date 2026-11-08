@@ -11,6 +11,19 @@ import (
 
 type requestIDContextKey struct{}
 
+// Leave time to cancel database work and send JSON before the server's 10s
+// write deadline. The server's read timeout separately bounds body reads.
+const requestTimeout = 5 * time.Second
+
+func withRequestDeadline(next http.Handler, timeout time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func requestMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := uuid.NewString()

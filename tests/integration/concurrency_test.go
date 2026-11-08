@@ -88,7 +88,6 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 
 	for i := 0; i < jobs; i++ {
 		job, err := serviceA.RequestUpdate(parent, "USD/EGP", nil)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +125,6 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 				t.Errorf("worker stopped with error: %v", err)
 			}
 		}
-
 	})
 
 	deadline := time.NewTimer(25 * time.Second)

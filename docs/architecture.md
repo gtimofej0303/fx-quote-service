@@ -30,7 +30,10 @@ implemented by PostgreSQL and the provider; the domain depends on neither.
    `SaveSuccess` commits the exact price and `succeeded` status in one transaction.
    A missing, expired or rotated lease token prevents stale writes.
 4. Temporary provider failures (timeout, unavailable, rate limiting) are retried
-   after a database-scheduled backoff of 2s and then 4s. Other provider failures
+   after a database-scheduled backoff of 2s and then 4s. For HTTP 429/503,
+   a valid `Retry-After` can postpone the retry further. The persisted due time
+   survives worker restarts and releases the worker to handle other jobs.
+   Other provider failures
    immediately become `failed`. No job is claimed more than three times.
    `FailExhausted` finalizes a last attempt abandoned after a crash.
 5. Clients poll `GET /api/v1/quote-updates/{id}` or read
@@ -49,6 +52,29 @@ There is no global rate limiter across application processes.
 Docker Compose starts PostgreSQL, runs Goose migrations, then starts the
 application. `/health/ready` checks application readiness and PostgreSQL,
 not the freshness or availability of Frankfurter.
+
+Migration `00003_quote_validation.sql` adds a required error code for failed jobs
+and a source-date bound relative to the recorded UTC retrieval date. Before
+upgrading an existing database, check for invalid rows:
+
+```sql
+SELECT id, status, error_code, error_message
+FROM quote_updates
+WHERE status = 'failed' AND error_code IS NULL;
+
+SELECT update_id, source_date, updated_at
+FROM quotes
+WHERE source_date > (updated_at AT TIME ZONE 'UTC')::date + 1;
+```
+
+The migration fails transactionally if such rows exist. Investigate and correct
+them explicitly; it does not invent failure codes or alter source dates.
+
+The same migration explicitly rejects PostgreSQL numeric
+`NaN`, which otherwise passes `price > 0`. Before upgrading, check for invalid
+prices with `SELECT update_id, pair, price FROM quotes WHERE price = 'NaN'::numeric;`.
+Investigate any matching rows before applying the migration; it does not replace
+unknown rates with invented values.
 
 On SIGINT/SIGTERM, readiness is disabled, the workers are canceled and the HTTP
 server stops accepting new connections, allowing up to 15 seconds for active

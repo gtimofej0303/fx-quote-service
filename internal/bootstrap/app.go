@@ -52,7 +52,6 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 
 	for i := 0; i < workerCount; i++ {
 		backgroundWorker, err := worker.New(repo, quoteSvc, frankfurter.New(), logger)
-
 		if err != nil {
 			return fmt.Errorf("initialize quote worker %d: %w", i+1, err)
 		}
@@ -64,8 +63,8 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	handler := httptransport.NewRouter(db, ready, logger, quoteSvc)
 	server := &http.Server{
 		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 3 * time.Second,
+		ReadTimeout:       3 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

@@ -83,6 +83,46 @@ func TestQuoteRecencyOrdering(t *testing.T) {
 	}
 }
 
+func TestQuoteSourceDateRelativeToRetrieval(t *testing.T) {
+	cases := []struct {
+		name, retrieved, source string
+		valid                   bool
+	}{
+		{"historical", "2000-01-03T12:00:00Z", "1999-12-31", true},
+		{"same day", "2026-11-08T00:00:00Z", "2026-11-08", true},
+		{"one day ahead", "2026-11-08T00:00:00Z", "2026-11-09", true},
+		{"two days ahead", "2026-11-08T23:59:59Z", "2026-11-10", false},
+		{"far future", "2026-11-08T12:00:00Z", "2099-01-01", false},
+		{"year boundary", "2026-12-31T23:59:59Z", "2027-01-01", true},
+		{"beyond year boundary", "2026-12-31T23:59:59Z", "2027-01-02", false},
+		{"leap day", "2024-02-28T00:00:00Z", "2024-02-29", true},
+		{"beyond leap day", "2024-02-28T23:59:59Z", "2024-03-01", false},
+		{"UTC boundary allowed", "2026-11-09T00:30:00+14:00", "2026-11-09", true},
+		{"UTC boundary rejected", "2026-11-09T00:30:00+14:00", "2026-11-10", false},
+		{"maximum source year", "9999-12-31T23:59:59Z", "9999-12-31", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			retrieved, err := time.Parse(time.RFC3339, tc.retrieved)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			q, err := NewQuote(1, PairUSDEUR, mustPrice(t, "0.9"), mustDate(t, tc.source), retrieved)
+			if !tc.valid {
+				if !errors.Is(err, ErrInvalidQuote) {
+					t.Fatalf("expected invalid quote, got %+v / %v", q, err)
+				}
+				return
+			}
+
+			if err != nil || q.SourceDate.String() != tc.source || q.Validate() != nil {
+				t.Fatalf("date must be preserved and remain valid: %+v / %v", q, err)
+			}
+		})
+	}
+}
+
 func mustDate(t *testing.T, s string) SourceDate {
 	t.Helper()
 
@@ -98,7 +138,6 @@ func mustPrice(t *testing.T, s string) Price {
 	t.Helper()
 
 	v, err := ParsePrice(s)
-
 	if err != nil {
 		t.Fatal(err)
 	}

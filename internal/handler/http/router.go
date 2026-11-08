@@ -27,5 +27,5 @@ func NewRouter(db DBPinger, ready *atomic.Bool, logger *slog.Logger, quoteServic
 		writeAPIError(w, r, http.StatusNotFound, "route_not_found", "Route not found")
 	})
 
-	return requestMiddleware(mux, logger)
+	return requestMiddleware(withRequestDeadline(mux, requestTimeout), logger)
 }

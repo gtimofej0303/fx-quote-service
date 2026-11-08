@@ -178,7 +178,8 @@ func TestFetchRateRejectsInvalidJSONAndBigBody(t *testing.T) {
 		{"boolean rate", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":true}`},
 		{"too precise", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":0.1234567890123456789}`},
 		{"duplicate rate", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":1,"rate":2}`},
-		{"extra field", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":1,"extra":2}`},
+		{"duplicate extra field", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":1,"extra":2,"extra":3}`},
+		{"malformed extra field", `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":1,"extra":{"value":}}`},
 		{"extra JSON", valid + ` {}`},
 		{"too big", valid + strings.Repeat(" ", maxResponseBytes)},
 	}

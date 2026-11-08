@@ -55,7 +55,7 @@ func TestParseCurrencyPairErrors(t *testing.T) {
 		t.Fatalf("noncanonical pair validation = %v", err)
 	}
 
-	if err := (CurrencyPair("")).Validate(); !errors.Is(err, ErrInvalidPair) {
+	if err := CurrencyPair("").Validate(); !errors.Is(err, ErrInvalidPair) {
 		t.Fatalf("zero pair validation = %v", err)
 	}
 }

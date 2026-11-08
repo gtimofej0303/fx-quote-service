@@ -42,7 +42,6 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 			}
 
 			result, err := rig.request(rig.ctx, http.MethodPost, "/api/v1/quote-updates", []byte(pair), keyPtr("same-concurrent-key"))
-
 			if err != nil {
 				results <- answer{err: err}
 
@@ -157,7 +156,7 @@ func TestE2EHTTPWorkerFrankfurterAndLatest(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		_, _ = w.Write([]byte(`{"date":"2026-11-06","base":"EUR","quote":"EGP","rate":61.123456789012345678}`))
+		_, _ = w.Write([]byte(`{"date":"2026-11-06","base":"EUR","quote":"EGP","rate":61.123456789012345678,"metadata":{"provider":"test","coverage":["EUR","EGP"]}}`))
 	})
 
 	id := rig.post(t, "EUR/EGP", keyPtr("e2e-success"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
@@ -16,9 +17,10 @@ var (
 
 // ProviderError describes an expected failure from the rate provider.
 type ProviderError struct {
-	Code    domain.FailureCode
-	Message string
-	Cause   error
+	Code           domain.FailureCode
+	Message        string
+	Cause          error
+	RetryNotBefore time.Time
 }
 
 // Error implements the error interface.
@@ -49,8 +51,10 @@ func (e *ProviderError) Unwrap() error {
 
 // ProcessResult describes the outcome of a single processing attempt.
 type ProcessResult struct {
-	Failure   *domain.UpdateFailure
-	Retryable bool
+	Failure        *domain.UpdateFailure
+	Retryable      bool
+	RetryNotBefore time.Time
+	Diagnostic     error `json:"-"` // Internal cause; never part of the public failure.
 }
 
 // ProcessJob processes an already claimed quote update job.
@@ -89,7 +93,7 @@ func (s *Service) ProcessJob(ctx context.Context, job domain.UpdateJob, provider
 			Message: "Provider returned an invalid quote",
 		}
 
-		return ProcessResult{Failure: &failure}, nil
+		return ProcessResult{Failure: &failure, Diagnostic: err}, nil
 	}
 
 	// SaveSuccess atomically checks the lease and writes quote + succeeded.
@@ -114,9 +118,16 @@ func classifyProviderError(err error) (ProcessResult, error) {
 			return ProcessResult{}, fmt.Errorf("%w: %v", ErrInvalidProviderError, validationErr)
 		}
 
+		diagnostic := providerErr.Cause
+		if diagnostic == nil {
+			diagnostic = err
+		}
+
 		return ProcessResult{
-			Failure:   &failure,
-			Retryable: isRetryableProviderCode(failure.Code),
+			Failure:        &failure,
+			Retryable:      isRetryableProviderCode(failure.Code),
+			RetryNotBefore: providerErr.RetryNotBefore,
+			Diagnostic:     diagnostic,
 		}, nil
 	}
 
@@ -131,7 +142,7 @@ func classifyProviderError(err error) (ProcessResult, error) {
 
 	failure := domain.UpdateFailure{Code: code, Message: message}
 
-	return ProcessResult{Failure: &failure, Retryable: true}, nil
+	return ProcessResult{Failure: &failure, Retryable: true, Diagnostic: err}, nil
 }
 
 // isRetryableProviderCode reports whether a provider failure can be retried.

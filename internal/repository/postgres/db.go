@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 func Open(databaseURL string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", databaseURL)
+	// An empty connection string uses standard PG* environment variables.
+	// Parse eagerly so invalid settings fail before the first connection.
+	cfg, err := pgx.ParseConfig(databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("open postgres connection pool: %w", err)
+		return nil, fmt.Errorf("parse postgres configuration: %w", err)
 	}
+	db := stdlib.OpenDB(*cfg)
 
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)

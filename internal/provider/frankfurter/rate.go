@@ -12,7 +12,7 @@ import (
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
-// parseRateResponse validates one flat v2 rate object, including its direction.
+// parseRateResponse validates the required v2 rate fields and their direction.
 // JSON rate is treated as a decimal token (not as float64).
 func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.Price, domain.SourceDate, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -23,6 +23,7 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 	}
 
 	fields := make(map[string]json.RawMessage, 4)
+	seen := make(map[string]struct{}, 4)
 
 	for dec.More() {
 		nameToken, err := dec.Token()
@@ -35,15 +36,10 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 			return domain.Price{}, "", errors.New("invalid object field name")
 		}
 
-		if _, exists := fields[name]; exists {
+		if _, exists := seen[name]; exists {
 			return domain.Price{}, "", errors.New("duplicate response field")
 		}
-
-		switch name {
-		case "date", "base", "quote", "rate":
-		default:
-			return domain.Price{}, "", errors.New("unexpected response field")
-		}
+		seen[name] = struct{}{}
 
 		var raw json.RawMessage
 
@@ -51,7 +47,13 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 			return domain.Price{}, "", fmt.Errorf("decode field: %w", err)
 		}
 
-		fields[name] = raw
+		switch name {
+		case "date", "base", "quote", "rate":
+			fields[name] = raw
+		default:
+			// Unknown fields may extend the provider contract. Their values
+			// must still be valid JSON within the response body's size limit.
+		}
 	}
 
 	end, err := dec.Token()
@@ -63,8 +65,10 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 		return domain.Price{}, "", errors.New("trailing JSON data")
 	}
 
-	if len(fields) != 4 {
-		return domain.Price{}, "", errors.New("response fields are missing")
+	for _, name := range []string{"date", "base", "quote", "rate"} {
+		if _, exists := fields[name]; !exists {
+			return domain.Price{}, "", fmt.Errorf("required response field %q is missing", name)
+		}
 	}
 
 	var base, quote, rawDate string

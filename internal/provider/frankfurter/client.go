@@ -100,7 +100,17 @@ func (c *Client) FetchRate(ctx context.Context, pair domain.CurrencyPair) (quote
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return quoteservice.FetchedRate{}, classifyHTTPStatus(resp.StatusCode)
+		err := classifyHTTPStatus(resp.StatusCode)
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			var providerErr *quoteservice.ProviderError
+
+			if errors.As(err, &providerErr) {
+				providerErr.RetryNotBefore = parseRetryAfter(resp.Header.Get("Retry-After"), c.now())
+			}
+		}
+
+		return quoteservice.FetchedRate{}, err
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))

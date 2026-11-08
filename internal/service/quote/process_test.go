@@ -104,7 +104,11 @@ func TestProcessJobClassifiesTypedProviderFailures(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.code), func(t *testing.T) {
 			cause := errors.New("upstream internal information")
-			providerErr := &service.ProviderError{Code: tc.code, Message: "Safe user-facing message", Cause: cause}
+			notBefore := time.Date(2026, 11, 8, 12, 1, 0, 0, time.UTC)
+			providerErr := &service.ProviderError{
+				Code: tc.code, Message: "Safe user-facing message", Cause: cause,
+				RetryNotBefore: notBefore,
+			}
 
 			provider := &fakeRateProvider{fetchFn: func(context.Context, domain.CurrencyPair) (service.FetchedRate, error) {
 				return service.FetchedRate{}, fmt.Errorf("wrapped: %w", providerErr)
@@ -113,6 +117,12 @@ func TestProcessJobClassifiesTypedProviderFailures(t *testing.T) {
 			result, err := newService(t, &fakeRepository{}).ProcessJob(context.Background(), processingJob(t), provider)
 			if err != nil || result.Failure == nil || result.Failure.Code != tc.code || result.Failure.Message != providerErr.Message || result.Retryable != tc.retryable {
 				t.Fatalf("classification: %+v / %v", result, err)
+			}
+			if !result.RetryNotBefore.Equal(notBefore) {
+				t.Fatalf("provider retry time was lost: %v", result.RetryNotBefore)
+			}
+			if !errors.Is(result.Diagnostic, cause) {
+				t.Fatalf("provider cause was lost: %v", result.Diagnostic)
 			}
 
 			if !errors.Is(providerErr, cause) {
@@ -142,6 +152,9 @@ func TestProcessJobClassifiesUnspecifiedProviderFailures(t *testing.T) {
 			result, err := newService(t, &fakeRepository{}).ProcessJob(context.Background(), processingJob(t), provider)
 			if err != nil || result.Failure == nil || result.Failure.Code != tc.want || !result.Retryable {
 				t.Fatalf("fallback: %+v / %v", result, err)
+			}
+			if !errors.Is(result.Diagnostic, tc.err) {
+				t.Fatalf("untyped cause was lost: %v", result.Diagnostic)
 			}
 		})
 	}
@@ -174,6 +187,7 @@ func TestProcessJobRejectsInvalidFetchedRateWithoutStorageWrite(t *testing.T) {
 		{"zero_price", func() service.FetchedRate { r := rate(t); r.Price = domain.Price{}; return r }()},
 		{"no_date", func() service.FetchedRate { r := rate(t); r.SourceDate = ""; return r }()},
 		{"no_retrieval_time", func() service.FetchedRate { r := rate(t); r.UpdatedAt = time.Time{}; return r }()},
+		{"future_source_date", func() service.FetchedRate { r := rate(t); r.SourceDate = "2099-01-01"; return r }()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bad := tc.rate
@@ -185,6 +199,9 @@ func TestProcessJobRejectsInvalidFetchedRateWithoutStorageWrite(t *testing.T) {
 			result, err := newService(t, &fakeRepository{}).ProcessJob(context.Background(), processingJob(t), provider)
 			if err != nil || result.Failure == nil || result.Failure.Code != domain.FailureProviderInvalidResponse || result.Retryable {
 				t.Fatalf("invalid rate: %+v / %v", result, err)
+			}
+			if !errors.Is(result.Diagnostic, domain.ErrInvalidQuote) {
+				t.Fatalf("domain validation cause was lost: %v", result.Diagnostic)
 			}
 		})
 	}

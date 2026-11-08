@@ -167,17 +167,28 @@ func (w *Worker) processClaimed(ctx context.Context, job domain.UpdateJob) error
 		return nil
 	}
 
+	// Log before finalization so a database error cannot hide the provider cause.
+	if result.Diagnostic != nil {
+		w.logger.Warn("quote provider attempt failed", "update_id", job.ID,
+			"pair", job.Pair, "attempt", job.Attempts, "code", result.Failure.Code,
+			"retryable", result.Retryable, "provider_error", result.Diagnostic)
+	}
+
 	finishCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
 
 	if result.Retryable && job.Attempts < maxAttempts {
-		delay := retryDelay(job.Attempts)
-		next := w.now().UTC().Add(delay)
+		now := w.now().UTC()
+		next := now.Add(retryDelay(job.Attempts))
+		if result.RetryNotBefore.After(next) {
+			next = result.RetryNotBefore.UTC()
+		}
 
 		err = w.queue.ScheduleRetry(finishCtx, job.ID, job.Lease.Token, next)
 		if err == nil {
 			w.logger.Warn("quote update scheduled for retry", "update_id", job.ID,
-				"attempt", job.Attempts, "delay", delay, "code", result.Failure.Code)
+				"attempt", job.Attempts, "delay", next.Sub(now), "next_attempt_at", next,
+				"code", result.Failure.Code)
 		}
 	} else {
 		err = w.queue.SaveFailure(finishCtx, job.ID, job.Lease.Token, *result.Failure)

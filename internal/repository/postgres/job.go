@@ -36,15 +36,15 @@ func (r *Repository) CreateJob(ctx context.Context, pair quote.CurrencyPair, key
 		sqlKey = *key
 	}
 
-	var id int64
-
-	err := r.db.QueryRowContext(ctx, `
+	job, err := scanJob(r.db.QueryRowContext(ctx, `
 		INSERT INTO quote_updates (pair, idempotency_key)
 		VALUES ($1, $2)
 		ON CONFLICT (idempotency_key) DO NOTHING
-		RETURNING id`, pair.String(), sqlKey).Scan(&id)
+		RETURNING id, pair, status, idempotency_key, attempts, next_attempt_at,
+		          created_at, completed_at, locked_until, lock_token::text,
+		          error_code, error_message`, pair.String(), sqlKey))
 	if err == nil {
-		return r.GetJob(ctx, id)
+		return job, nil
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -62,7 +62,6 @@ func (r *Repository) CreateJob(ctx context.Context, pair quote.CurrencyPair, key
 		       created_at, completed_at, locked_until, lock_token::text,
 		       error_code, error_message
 		FROM quote_updates WHERE idempotency_key = $1`, *key))
-
 	if err != nil {
 		return quote.UpdateJob{}, fmt.Errorf("read idempotent job: %w", err)
 	}

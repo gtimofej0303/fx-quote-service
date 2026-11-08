@@ -16,10 +16,35 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsMissingDatabaseURL(t *testing.T) {
+func TestLoadPostgresEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
-	if _, err := Load(); err == nil {
-		t.Fatal("expected error for missing DATABASE_URL")
+	t.Setenv("PGHOST", "localhost")
+	t.Setenv("PGUSER", "review")
+	t.Setenv("PGDATABASE", "quotes")
+	t.Setenv("PGPASSWORD", "literal@pass/with%40$#characters")
+	t.Setenv("LOG_LEVEL", "info")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DatabaseURL != "" {
+		t.Fatal("PG* configuration must not be converted to a URL")
+	}
+}
+
+func TestLoadRejectsIncompletePostgresEnvironment(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	for _, missing := range []string{"PGHOST", "PGUSER", "PGDATABASE"} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv("PGHOST", "localhost")
+			t.Setenv("PGUSER", "review")
+			t.Setenv("PGDATABASE", "quotes")
+			t.Setenv(missing, "")
+			if _, err := Load(); err == nil {
+				t.Fatalf("expected error for missing %s", missing)
+			}
+		})
 	}
 }
 
