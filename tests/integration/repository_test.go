@@ -64,7 +64,7 @@ func makeQuote(t *testing.T, job quote.UpdateJob, price, date string, fetched ti
 func TestCreateJobIdempotencyConcurrent(t *testing.T) {
 	_, repo, ctx := openTestDatabase(t)
 	key := "operation-42"
-	
+
 	const count = 24
 
 	ids := make(chan int64, count)
@@ -256,7 +256,7 @@ func TestSaveSuccessAtomicAndLatest(t *testing.T) {
 	}
 
 	var winning int64
-	
+
 	for idx, item := range data {
 		job := create(t, ctx, repo, item.pair)
 
@@ -275,7 +275,7 @@ func TestSaveSuccessAtomicAndLatest(t *testing.T) {
 		}
 
 		mustEqual(t, persisted.Price.String(), q.Price.String(), "exact decimal roundtrip")
-		
+
 		if idx == 3 {
 			winning = job.ID
 		}
@@ -311,9 +311,9 @@ func TestStaleAndWrongPairNeverPersistQuote(t *testing.T) {
 
 	job := create(t, ctx, repo, quote.PairEUREGP)
 	processing := claim(t, ctx, repo, 2)
-	
+
 	q := makeQuote(t, job, "61.96", "2026-11-03", time.Now().UTC())
-	
+
 	if err := repo.SaveSuccess(ctx, q, "not-the-token"); !errors.Is(err, postgres.ErrLeaseLost) {
 		t.Fatalf("wrong token: %v", err)
 	}
@@ -367,11 +367,11 @@ func TestExpiredProcessingJobGetsNewToken(t *testing.T) {
 	}
 
 	q := makeQuote(t, job, "0.02", "2026-11-03", time.Now().UTC())
-	
+
 	if err := repo.SaveSuccess(ctx, q, first.Lease.Token); !errors.Is(err, postgres.ErrLeaseLost) {
 		t.Fatalf("stale worker write should fail: %v", err)
 	}
-	
+
 	if err := repo.SaveSuccess(ctx, q, second.Lease.Token); err != nil {
 		t.Fatal(err)
 	}
@@ -379,10 +379,10 @@ func TestExpiredProcessingJobGetsNewToken(t *testing.T) {
 
 func TestExpiredLeaseMaxAttemptsAndPersistence(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
-	
+
 	job := create(t, ctx, repo, quote.PairEGPEUR)
 	processing := claim(t, ctx, repo, 1)
-	
+
 	// Expiration is persisted, simulating a worker crash on the final attempt.
 	if _, err := db.ExecContext(ctx, `UPDATE quote_updates SET locked_until=statement_timestamp() - interval '1 second' WHERE id=$1`, job.ID); err != nil {
 		t.Fatal(err)
@@ -415,7 +415,7 @@ func TestExpiredLeaseMaxAttemptsAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer secondDB.Close()
-	
+
 	persisted, err := postgres.New(secondDB).GetJob(ctx, job.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -466,7 +466,7 @@ func TestDatabaseIntegrityChecks(t *testing.T) {
 	if _, err := repo.ClaimNext(ctx, 1500*time.Millisecond, 2); !errors.Is(err, postgres.ErrInvalidRepositoryArgument) {
 		t.Fatalf("fractional lease is rejected: %v", err)
 	}
-	
+
 	if n, err := repo.FailExhausted(ctx, 0, 20); !errors.Is(err, postgres.ErrInvalidRepositoryArgument) || n != 0 {
 		t.Fatalf("invalid max attempts: %d, %v", n, err)
 	}

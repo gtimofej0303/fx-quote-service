@@ -59,7 +59,7 @@ func openTestDatabase(t *testing.T) (*sql.DB, *postgres.Repository, context.Cont
 
 func mustEqual[T comparable](t *testing.T, got, want T, label string) {
 	t.Helper()
-	
+
 	if got != want {
 		t.Fatal(fmt.Sprintf("%s: got %v, want %v", label, got, want))
 	}

@@ -54,40 +54,40 @@ func newTestRig(t *testing.T) *testRig {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
-	
+
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("cannot connect to test PostgreSQL: %v", err)
 	}
 
 	var name string
-	
+
 	if err := db.QueryRowContext(ctx, `SELECT current_database()`).Scan(&name); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	if !strings.HasSuffix(name, "_test") {
 		t.Fatalf("refusing destructive e2e test on database %q", name)
 	}
-	
+
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM quote_updates`).Scan(new(int)); err != nil {
 		t.Fatalf("apply migrations to _test database before e2e: %v", err)
 	}
-	
+
 	if _, err := db.ExecContext(ctx, `TRUNCATE quotes, quote_updates RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("reset dedicated test database: %v", err)
 	}
 
 	repo := postgres.New(db)
-	
+
 	service, err := quoteservice.New(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ready := &atomic.Bool{}
 	ready.Store(true)
-	
+
 	api := httptest.NewServer(httptransport.NewRouter(db, ready, logger, service))
 	t.Cleanup(api.Close)
 
@@ -259,7 +259,7 @@ func (r *testRig) startWorkers(t *testing.T, provider quoteservice.RateProvider,
 	t.Helper()
 
 	workers := make([]*worker.Worker, 0, count)
-	
+
 	for i := 0; i < count; i++ {
 		w, err := worker.New(r.repo, r.service, provider, r.logger)
 		if err != nil {
@@ -296,6 +296,6 @@ func (r *testRig) startWorkers(t *testing.T, provider quoteservice.RateProvider,
 	}
 
 	t.Cleanup(stop)
-	
+
 	return stop
 }

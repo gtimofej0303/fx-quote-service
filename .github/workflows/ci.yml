@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Superseded runs on the same branch/PR do not consume runner time.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Go, OpenAPI, PostgreSQL and E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Disposable CI-only credentials and database. No project .env is used.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: fxquote
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: fxquote_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fxquote -d fxquote_test"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgres://fxquote:ci_only_password@127.0.0.1:5432/fxquote_test?sslmode=disable
+      LOG_LEVEL: info
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Enforce gofmt
+        shell: bash
+        run: |
+          unformatted=$(git ls-files -z -- '*.go' | xargs -0 -r gofmt -l)
+          if [ -n "$unformatted" ]; then
+            printf 'Go files require gofmt:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: go test -count=1 ./...
+
+      - name: Static analysis
+        run: go vet ./...
+
+      - name: Compile API and migration entry points
+        run: go build ./cmd/api ./cmd/migrate
+
+      - name: Set up Node for OpenAPI validation
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Validate OpenAPI 3 specification
+        run: npx --yes @redocly/cli@2.76.0 lint api/openapi.yaml
+
+      - name: Migrate isolated test database
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: go run ./cmd/migrate up
+
+      # Separate steps are deliberate: both test packages TRUNCATE the same DB.
+      - name: Integration tests (PostgreSQL)
+        run: go test -tags=integration -count=1 -v ./tests/integration
+
+      - name: End-to-end tests (HTTP, PostgreSQL, workers, fake Frankfurter)
+        run: go test -tags=e2e -count=1 -v ./tests/e2e

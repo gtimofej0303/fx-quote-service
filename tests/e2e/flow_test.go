@@ -26,7 +26,7 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 	}
 
 	results := make(chan answer, requests)
-	
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < requests; i++ {
@@ -42,7 +42,7 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 			}
 
 			result, err := rig.request(rig.ctx, http.MethodPost, "/api/v1/quote-updates", []byte(pair), keyPtr("same-concurrent-key"))
-			
+
 			if err != nil {
 				results <- answer{err: err}
 
@@ -53,14 +53,14 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 
 			if err := json.Unmarshal(result.body, &a); err != nil {
 				results <- answer{err: err}
-				
+
 				return
 			}
 
 			if result.header.Get("Location") != fmt.Sprintf("/api/v1/quote-updates/%d", a.ID) ||
 				result.header.Get("X-Request-ID") == "" {
 				results <- answer{err: fmt.Errorf("bad headers: %v", result.header)}
-				
+
 				return
 			}
 
@@ -253,7 +253,7 @@ func TestE2EProviderRetriesAndPermanentFailures(t *testing.T) {
 			rig.startWorkers(t, provider, 2)
 
 			got := rig.waitStatus(t, id, tc.wantStatus, 20*time.Second)
-			
+
 			persisted, err := rig.repo.GetJob(rig.ctx, id)
 			if err != nil {
 				t.Fatal(err)
@@ -301,7 +301,7 @@ func TestE2EWorkerRestartReclaimsInterruptedJob(t *testing.T) {
 	id := rig.post(t, "USD/EGP", keyPtr("restart-scenario"))
 
 	stop := rig.startWorkers(t, blockingProvider, 1)
-	
+
 	select {
 	case <-entered:
 	case <-time.After(7 * time.Second):
@@ -349,7 +349,7 @@ func TestE2EWorkerRestartReclaimsInterruptedJob(t *testing.T) {
 	if err := rig.db.QueryRowContext(rig.ctx, `SELECT count(*) FROM quotes WHERE update_id=$1`, id).Scan(&quotes); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	if quotes != 1 {
 		t.Fatalf("recovered update has %d quotes, want 1", quotes)
 	}

@@ -39,7 +39,7 @@ func (p *slowProvider) FetchRate(ctx context.Context, _ domain.CurrencyPair) (qu
 
 	timer := time.NewTimer(50 * time.Millisecond)
 	defer timer.Stop()
-	
+
 	select {
 	case <-ctx.Done():
 		return quoteservice.FetchedRate{}, ctx.Err()
@@ -69,7 +69,7 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 	}
 
 	t.Cleanup(func() { _ = dbB.Close() })
-	
+
 	repoB := postgres.New(dbB)
 
 	serviceA, err := quoteservice.New(repoA)
@@ -88,7 +88,7 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 
 	for i := 0; i < jobs; i++ {
 		job, err := serviceA.RequestUpdate(parent, "USD/EGP", nil)
-		
+
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		
+
 		if got.Quote == nil || got.Quote.Price.String() != "50.123456789012345678" || got.Job.Attempts != 1 {
 			t.Fatalf("incorrect saved result for %d: %+v", id, got)
 		}

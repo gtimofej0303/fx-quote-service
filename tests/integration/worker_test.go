@@ -107,7 +107,7 @@ func TestWorkerPersistsQuoteAndRecoversExpiredClaim(t *testing.T) {
 
 			return
 		}
-		
+
 		select {
 		case <-poll.C:
 		case <-deadline.C:

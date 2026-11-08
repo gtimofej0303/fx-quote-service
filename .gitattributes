@@ -1,0 +1,5 @@
+# Keep Go formatting and CI scripts consistent on Windows and Linux.
+*.go text eol=lf
+Makefile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
