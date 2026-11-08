@@ -37,11 +37,11 @@ The current domain stores prices with up to 18 fractional decimal digits.
 
 ### Operational boundaries
 
-- Provider adapter is called by `service/quote.ProcessJob` from the worker **starting in stage 7**. Stage 6 does not run the worker.
-- Request deadline: 8 seconds in the adapter. No automatic retries or caching in stage 6; retry/backoff belongs to the worker in stage 7.
+- The stage-7 worker calls `service/quote.ProcessJob` with this provider. HTTP POST never calls the provider.
+- Request deadline: 8 seconds in the adapter. No retries or caching in the provider adapter; retry/backoff is handled by the stage-7 worker (at most three claimed attempts).
 - HTTP 404 is `provider_rate_not_found`; 429 is `provider_rate_limited`; 408/504 and network timeouts are `provider_timeout`; 5xx are `provider_unavailable`; 400/422 and other 4xx are `provider_rejected_request`; malformed successful JSON is `provider_invalid_response`.
 - The adapter limits a response body to 32 KiB, does not follow redirects, and never includes raw upstream response bodies in client-facing error messages.
-- Manual smoke test for all six pairs: run the `curl` loop in the stage-6 guide. Unit tests run offline through `httptest`.
+- Unit tests run offline through `httptest`. The stage-7 guide includes a full HTTP-to-worker smoke test, while the stage-6 guide checks each direct Frankfurter endpoint.
 
 For production-scale traffic, consider caching on the worker side or self-hosting.
 The public API has abuse-prevention rate limiting, even though daily/monthly

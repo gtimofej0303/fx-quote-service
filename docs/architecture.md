@@ -1,53 +1,71 @@
 # fx-quote-service Architecture
 
-The service exposes an HTTP API and updates currency quotes in the background.
-Supported currencies are USD, EUR and EGP.
+The service exposes an asynchronous HTTP/JSON API for currency quotes between
+USD, EUR and EGP. The HTTP server and one background worker run in the same Go
+process; PostgreSQL stores both quotes and the durable update queue.
 
 ## Layers
 
 | Package | Responsibility |
 | --- | --- |
-| `domain/quote` | Currency pairs, quotes, update jobs and business rules. |
-| `repository/postgres` | Store and retrieve jobs and quotes. |
-| `service/quote` | Create updates, read results and process jobs. |
-| `handler/http` | HTTP requests, JSON responses and validation. |
-| `provider/frankfurter` | Fetch a directly quoted rate for the requested directed pair via Frankfurter v2. |
-| `worker` | Run background jobs and retry temporary failures. |
-| `config`, `bootstrap`, `observability` | Configuration, startup and logging. |
+| `internal/domain/quote` | Directed currency pairs, exact decimal prices, quotes, update jobs and validation. |
+| `internal/repository/postgres` | Transactional persistence, atomic job claims and lease-protected state changes. |
+| `internal/service/quote` | Request/read operations and processing of an already claimed job. |
+| `internal/handler/http` | HTTP API, JSON validation and public error mapping. |
+| `internal/provider/frankfurter` | One direct Frankfurter v2 GET per directed pair; no conversion in Go. |
+| `internal/worker` | Poll the database queue, invoke `ProcessJob`, schedule retry and finalize failures. |
+| `internal/config`, `internal/bootstrap`, `internal/observability` | Configuration, lifecycle and structured logs. |
 
-Handlers and workers call services. Services use interfaces implemented by the
-repository and provider. Domain logic is independent of HTTP and PostgreSQL.
-The provider returns a `FetchedRate` and performs **no reciprocal/cross-rate
-calculation** in the application; the existing domain controls price precision.
+Handlers and the worker use the service. The service depends on interfaces
+implemented by PostgreSQL and the provider; the domain depends on neither.
 
-## Request Flow
+## Asynchronous request flow
 
-1. A client requests an update and receives a job ID.
-2. A worker (implemented in stage 7) requests the specific pair via [Frankfurter API v2](provider.md) and saves the result.
-3. The client reads the job result or the latest successful quote for a pair.
+1. `POST /api/v1/quote-updates` persists a `pending` job and immediately returns
+   HTTP 202 with the update ID; it **does not** contact Frankfurter.
+2. The worker polls PostgreSQL every second. `ClaimNext` atomically selects a due
+   `pending` job or an expired `processing` lease using `FOR UPDATE SKIP LOCKED`.
+   It issues a new UUID lease token, moves the job to `processing` and increases
+   its attempt counter.
+3. `service/quote.ProcessJob` calls `provider/frankfurter.FetchRate`. On success,
+   it saves the exact price and marks the job `succeeded` in one transaction.
+   The repository checks the lease token and deadline before committing.
+4. On temporary provider failures (timeout, unavailable, 429), the worker
+   schedules a retry in `pending` with backoff, up to three claimed attempts.
+   Permanent errors or the last failed attempt become `failed` with a safe code
+   and message. `FailExhausted` finalizes expired last attempts.
+5. Clients poll `GET /api/v1/quote-updates/{id}` or read
+   `GET /api/v1/quotes/latest?pair=USD%2FEGP` after success.
 
-One application process runs the HTTP server and workers. PostgreSQL stores jobs
-and quotes. Pending work survives application restarts; completed results remain
-available by their job IDs. During stage 6, the worker has not been connected,
-so newly created jobs remain `pending`.
+The worker executes one job at a time. Polling is once per second, with a
+30-second lease and a 20-second total processing budget (the provider itself
+has an 8-second request timeout). Transient retry delays are 2s, then 4s.
+An expired lease can be reclaimed after a crash; token checks prevent a stale
+worker from persisting a second result. `processing_timeout` is used for jobs
+that exhausted attempts without finalizing.
 
-## Project Layout
+## Runtime and shutdown
+
+Docker Compose starts PostgreSQL, runs Goose migrations, then starts the
+application. `bootstrap.Run` starts both the HTTP server and worker after the
+database has been checked. `/health/ready` checks readiness and database
+connectivity; it is not a check of external provider freshness.
+
+On SIGINT/SIGTERM, readiness is disabled, the worker context is canceled, the
+HTTP server stops accepting connections and waits up to 15 seconds for active
+HTTP requests. The application waits for the worker to stop before closing
+its database pool. An interrupted `processing` job remains durable and becomes
+eligible after its lease expires; already succeeded jobs are not reclaimed.
+
+## Project layout
 
 | Directory | Contents |
 | --- | --- |
-| `cmd/` | Application and migration entry points. |
-| `internal/` | Layers listed above. |
-| `migrations/` | Goose SQL migrations. |
-| `api/` | [OpenAPI specification](../api/openapi.yaml). |
-| `tests/` | Integration and end-to-end tests; unit tests live next to the code. |
+| `cmd/` | API and migration entry points. |
+| `internal/` | All domain, HTTP, service, repository, provider and worker packages. |
+| `migrations/` | Goose PostgreSQL schema. |
+| `api/openapi.yaml` | Public HTTP contract. |
+| `tests/integration/` | Database-backed tests (requires separate `_test` DB). |
 | `docs/` | Requirements, architecture and provider description. |
 
-## Runtime
-
-Docker Compose runs the application and PostgreSQL, applying Goose migrations
-before startup. Configuration uses environment variables. Logging uses standard
-`log/slog`; errors use standard `errors` and `fmt`. Health endpoints report liveness
-and readiness. The application shuts down gracefully.
-
-The Frankfurter adapter uses the standard `net/http` client with an 8-second
-request deadline. The worker will own job retry/backoff, not the provider.
+No Redis, RabbitMQ, extra Go modules or new SQL migrations are needed for stage 7.
