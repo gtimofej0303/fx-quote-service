@@ -11,6 +11,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
+// requireCheckConstraint checks that the database error names the expected rule.
 func requireCheckConstraint(t *testing.T, err error, name string) {
 	t.Helper()
 
@@ -21,6 +22,7 @@ func requireCheckConstraint(t *testing.T, err error, name string) {
 	}
 }
 
+// TestFailedJobRequiresErrorCode checks that a failed job must have an error code.
 func TestFailedJobRequiresErrorCode(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
@@ -46,6 +48,7 @@ func TestFailedJobRequiresErrorCode(t *testing.T) {
 	}
 }
 
+// TestDatabaseSourceDateMatchesDomainTolerance checks that database and Go rules allow the same source dates.
 func TestDatabaseSourceDateMatchesDomainTolerance(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 	cases := []struct {
@@ -72,7 +75,7 @@ func TestDatabaseSourceDateMatchesDomainTolerance(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			// Session time zone must not affect the UTC date boundary.
+			// The session time zone must not change the UTC date.
 			if _, err := tx.ExecContext(ctx, `SET LOCAL TIME ZONE 'Pacific/Honolulu'`); err != nil {
 				t.Fatal(err)
 			}

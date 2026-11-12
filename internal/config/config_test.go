@@ -2,6 +2,7 @@ package config
 
 import "testing"
 
+// TestLoad checks that settings load from the environment.
 func TestLoad(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/fxquotes?sslmode=disable")
 	t.Setenv("HTTP_ADDR", ":8080")
@@ -16,6 +17,7 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// TestLoadPostgresEnvironment checks that PG* settings work without a database URL.
 func TestLoadPostgresEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("PGHOST", "localhost")
@@ -33,6 +35,7 @@ func TestLoadPostgresEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadRejectsIncompletePostgresEnvironment checks that missing PG* settings cause an error.
 func TestLoadRejectsIncompletePostgresEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	for _, missing := range []string{"PGHOST", "PGUSER", "PGDATABASE"} {
@@ -48,6 +51,7 @@ func TestLoadRejectsIncompletePostgresEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadRejectsUnknownLogLevel checks that an unknown log level causes an error.
 func TestLoadRejectsUnknownLogLevel(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/db")
 	t.Setenv("LOG_LEVEL", "trace")

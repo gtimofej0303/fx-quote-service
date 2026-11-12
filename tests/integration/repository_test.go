@@ -14,6 +14,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/repository/postgres"
 )
 
+// create creates a job in the test database.
 func create(t *testing.T, ctx context.Context, repo *postgres.Repository, pair quote.CurrencyPair) quote.UpdateJob {
 	t.Helper()
 
@@ -25,6 +26,7 @@ func create(t *testing.T, ctx context.Context, repo *postgres.Repository, pair q
 	return job
 }
 
+// claim takes a ready job from the test database.
 func claim(t *testing.T, ctx context.Context, repo *postgres.Repository, max int) quote.UpdateJob {
 	t.Helper()
 
@@ -40,6 +42,7 @@ func claim(t *testing.T, ctx context.Context, repo *postgres.Repository, max int
 	return job
 }
 
+// makeQuote creates a valid quote for the test job.
 func makeQuote(t *testing.T, job quote.UpdateJob, price, date string, fetched time.Time) quote.Quote {
 	t.Helper()
 
@@ -61,6 +64,7 @@ func makeQuote(t *testing.T, job quote.UpdateJob, price, date string, fetched ti
 	return q
 }
 
+// TestCreateJobIdempotencyConcurrent checks that requests with the same key create one job at the same time.
 func TestCreateJobIdempotencyConcurrent(t *testing.T) {
 	_, repo, ctx := openTestDatabase(t)
 	key := "operation-42"
@@ -130,6 +134,7 @@ func TestCreateJobIdempotencyConcurrent(t *testing.T) {
 	}
 }
 
+// TestClaimRetryLeaseRotationAndFailure checks job leases, retry times, and saved failures.
 func TestClaimRetryLeaseRotationAndFailure(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 	one := create(t, ctx, repo, quote.PairUSDEGP)
@@ -187,7 +192,7 @@ func TestClaimRetryLeaseRotationAndFailure(t *testing.T) {
 		t.Fatalf("future retry must not be claimed: %v", err)
 	}
 
-	// Move due time in the test DB instead of sleeping a full minute.
+	// Change the job time in the test database to avoid a minute of waiting.
 	if _, err := db.ExecContext(ctx, `UPDATE quote_updates SET next_attempt_at = statement_timestamp() - interval '1 second' WHERE id=$1`, one.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -233,6 +238,7 @@ func TestClaimRetryLeaseRotationAndFailure(t *testing.T) {
 	}
 }
 
+// TestSaveSuccessAtomicAndLatest checks that the quote and success status save together and the latest quote is correct.
 func TestSaveSuccessAtomicAndLatest(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
@@ -296,7 +302,7 @@ func TestSaveSuccessAtomicAndLatest(t *testing.T) {
 
 	mustEqual(t, usdLatest.Price.String(), "51.1", "pair isolation")
 
-	// A direct DELETE cannot make an already-succeeded job orphaned.
+	// DELETE must not leave a successful job without a quote.
 	if _, err := db.ExecContext(ctx, `DELETE FROM quotes WHERE update_id=$1`, winning); err == nil {
 		t.Fatal("deferred integrity trigger should reject deleting successful quote")
 	}
@@ -306,6 +312,7 @@ func TestSaveSuccessAtomicAndLatest(t *testing.T) {
 	}
 }
 
+// TestStaleAndWrongPairNeverPersistQuote checks that old lease tokens and wrong currency pairs cannot save quotes.
 func TestStaleAndWrongPairNeverPersistQuote(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
@@ -329,7 +336,7 @@ func TestStaleAndWrongPairNeverPersistQuote(t *testing.T) {
 		t.Fatalf("rollback should prevent quote insert: %v", err)
 	}
 
-	// Raw SQL must not allow succeeded with no quote either.
+	// SQL must also reject a successful job without a quote.
 	if _, err := db.ExecContext(ctx, `
 		UPDATE quote_updates SET status='succeeded', attempts=1,
 		    completed_at=statement_timestamp(), lock_token=NULL, locked_until=NULL
@@ -346,6 +353,7 @@ func TestStaleAndWrongPairNeverPersistQuote(t *testing.T) {
 	}
 }
 
+// TestExpiredProcessingJobGetsNewToken checks that taking a job with an expired lease gives it a new token.
 func TestExpiredProcessingJobGetsNewToken(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
@@ -377,13 +385,14 @@ func TestExpiredProcessingJobGetsNewToken(t *testing.T) {
 	}
 }
 
+// TestExpiredLeaseMaxAttemptsAndPersistence checks that an expired job with no tries left is saved as failed.
 func TestExpiredLeaseMaxAttemptsAndPersistence(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
 	job := create(t, ctx, repo, quote.PairEGPEUR)
 	processing := claim(t, ctx, repo, 1)
 
-	// Expiration is persisted, simulating a worker crash on the final attempt.
+	// Save an expired lease to test a worker crash on its last try.
 	if _, err := db.ExecContext(ctx, `UPDATE quote_updates SET locked_until=statement_timestamp() - interval '1 second' WHERE id=$1`, job.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +418,7 @@ func TestExpiredLeaseMaxAttemptsAndPersistence(t *testing.T) {
 	}
 	mustEqual(t, count, int64(0), "idempotent recovery")
 
-	// A different connection must observe the committed terminal state.
+	// Another connection must see the saved final status.
 	secondDB, err := postgres.Open(os.Getenv("TEST_DATABASE_URL"))
 	if err != nil {
 		t.Fatal(err)
@@ -430,6 +439,7 @@ func TestExpiredLeaseMaxAttemptsAndPersistence(t *testing.T) {
 	}
 }
 
+// TestDatabaseIntegrityChecks checks that database rules reject invalid job and quote data.
 func TestDatabaseIntegrityChecks(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 

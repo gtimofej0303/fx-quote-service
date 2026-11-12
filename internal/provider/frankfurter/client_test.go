@@ -19,6 +19,7 @@ import (
 
 var testRetrievedAt = time.Date(2026, 11, 7, 18, 0, 0, 123, time.FixedZone("UTC+3", 3*3600))
 
+// testClient creates a rate client connected to a test HTTP server.
 func testClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 
@@ -35,6 +36,7 @@ func testClient(t *testing.T, handler http.HandlerFunc) *Client {
 	return c
 }
 
+// requireProviderCode checks that the provider error has the expected code.
 func requireProviderCode(t *testing.T, err error, want domain.FailureCode) {
 	t.Helper()
 
@@ -45,6 +47,7 @@ func requireProviderCode(t *testing.T, err error, want domain.FailureCode) {
 	}
 }
 
+// TestFetchRateAllDirectedPairsOneRequestEach checks that each currency direction uses one request and returns the right rate.
 func TestFetchRateAllDirectedPairsOneRequestEach(t *testing.T) {
 	cases := []struct {
 		pair             domain.CurrencyPair
@@ -96,6 +99,7 @@ func TestFetchRateAllDirectedPairsOneRequestEach(t *testing.T) {
 	}
 }
 
+// TestFetchRateInvalidPairNeverCallsHTTP checks that an invalid currency pair sends no HTTP request.
 func TestFetchRateInvalidPairNeverCallsHTTP(t *testing.T) {
 	var calls atomic.Int32
 
@@ -113,6 +117,7 @@ func TestFetchRateInvalidPairNeverCallsHTTP(t *testing.T) {
 	}
 }
 
+// TestFetchRateHTTPStatuses checks how the client handles HTTP status codes.
 func TestFetchRateHTTPStatuses(t *testing.T) {
 	cases := []struct {
 		status int
@@ -159,6 +164,7 @@ func TestFetchRateHTTPStatuses(t *testing.T) {
 	}
 }
 
+// TestFetchRateRejectsInvalidJSONAndBigBody checks that the client rejects invalid JSON and large responses.
 func TestFetchRateRejectsInvalidJSONAndBigBody(t *testing.T) {
 	valid := `{"date":"2026-11-06","base":"USD","quote":"EUR","rate":0.87598}`
 
@@ -194,6 +200,7 @@ func TestFetchRateRejectsInvalidJSONAndBigBody(t *testing.T) {
 	}
 }
 
+// TestFetchRateCancelAndTimeout checks canceled requests and client timeouts.
 func TestFetchRateCancelAndTimeout(t *testing.T) {
 	var calls atomic.Int32
 
@@ -212,7 +219,7 @@ func TestFetchRateCancelAndTimeout(t *testing.T) {
 		t.Fatalf("pre-canceled context: %v, calls %d", err, calls.Load())
 	}
 
-	// Client's own short timeout behaves as a retryable provider timeout.
+	// Simulate a slow provider response so the test can check that the client's timeout is classified as retryable.
 	slow := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 
@@ -225,7 +232,7 @@ func TestFetchRateCancelAndTimeout(t *testing.T) {
 
 	requireProviderCode(t, err, domain.FailureProviderTimeout)
 
-	// A caller-supplied deadline is an unwrapped ctx error for ProcessJob.
+	// Return the caller's deadline error unchanged so ProcessJob can recognize cancellation.
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Millisecond)
 	defer cancel()
 
@@ -238,8 +245,10 @@ func TestFetchRateCancelAndTimeout(t *testing.T) {
 
 type failingRoundTripper struct{ err error }
 
+// RoundTrip returns the test network error without sending a request.
 func (r failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) { return nil, r.err }
 
+// TestFetchRateNetworkFailures checks how the client handles network errors.
 func TestFetchRateNetworkFailures(t *testing.T) {
 	cases := []struct {
 		err  error
@@ -264,6 +273,7 @@ func TestFetchRateNetworkFailures(t *testing.T) {
 	}
 }
 
+// TestNewWithBaseURLValidation checks valid and invalid API addresses.
 func TestNewWithBaseURLValidation(t *testing.T) {
 	for _, invalid := range []string{"", "api.frankfurter.dev", "ftp://x", "http://", "https://user:pass@example.com", "https://host/path", "https://host?x=1", "https://host/#hash"} {
 		if _, err := NewWithBaseURL(invalid, nil); err == nil {

@@ -19,6 +19,7 @@ type staticRateProvider struct {
 	calls atomic.Int32
 }
 
+// FetchRate counts calls and returns a fixed test rate.
 func (p *staticRateProvider) FetchRate(_ context.Context, pair domain.CurrencyPair) (quoteservice.FetchedRate, error) {
 	p.calls.Add(1)
 
@@ -37,6 +38,7 @@ func (p *staticRateProvider) FetchRate(_ context.Context, pair domain.CurrencyPa
 	}, nil
 }
 
+// TestWorkerPersistsQuoteAndRecoversExpiredClaim checks that a worker saves quotes and takes over jobs with expired leases.
 func TestWorkerPersistsQuoteAndRecoversExpiredClaim(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 
@@ -45,7 +47,7 @@ func TestWorkerPersistsQuoteAndRecoversExpiredClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Simulate a prior worker that crashed after its first claim.
+	// Test a worker crash after it takes a job.
 	job, err := service.RequestUpdate(ctx, "USD/EGP", nil)
 	if err != nil {
 		t.Fatal(err)

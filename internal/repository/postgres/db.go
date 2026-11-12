@@ -10,8 +10,8 @@ import (
 )
 
 func Open(databaseURL string) (*sql.DB, error) {
-	// An empty connection string uses standard PG* environment variables.
-	// Parse eagerly so invalid settings fail before the first connection.
+	// An empty connection string uses the PG* environment settings.
+	// Check settings before opening the first connection.
 	cfg, err := pgx.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse postgres configuration: %w", err)

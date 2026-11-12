@@ -14,7 +14,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/repository/postgres"
 )
 
-// Each test uses the dedicated database ending in _test. Tests are sequential.
+// Tests use a database ending in _test. They run one at a time.
 func openTestDatabase(t *testing.T) (*sql.DB, *postgres.Repository, context.Context) {
 	t.Helper()
 
@@ -46,7 +46,7 @@ func openTestDatabase(t *testing.T) (*sql.DB, *postgres.Repository, context.Cont
 		t.Fatalf("refuse to truncate database %q: name must end with _test", databaseName)
 	}
 
-	// A failed query here usually means migration 00002 has not been applied.
+	// If this query fails, database update 00002 may be missing.
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM quote_updates`).Scan(new(int)); err != nil {
 		t.Fatalf("run migrations against the TEST database first: %v", err)
 	}
@@ -57,6 +57,7 @@ func openTestDatabase(t *testing.T) (*sql.DB, *postgres.Repository, context.Cont
 	return db, postgres.New(db), ctx
 }
 
+// mustEqual fails the test if the values are different.
 func mustEqual[T comparable](t *testing.T, got, want T, label string) {
 	t.Helper()
 

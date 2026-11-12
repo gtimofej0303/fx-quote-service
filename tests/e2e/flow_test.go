@@ -14,6 +14,7 @@ import (
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
+// TestE2EConcurrentIdempotencyOverHTTP checks that requests with the same key create one job, even at the same time.
 func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 	rig := newTestRig(t)
 
@@ -131,7 +132,7 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 		t.Fatalf("empty Idempotency-Key: HTTP %d: %s", emptyKey.status, emptyKey.body)
 	}
 
-	// No header at all: each POST creates an independent job.
+	// Without this header, each POST creates a new job.
 	unkeyedA := rig.post(t, "EUR/EGP", nil)
 	unkeyedB := rig.post(t, "EUR/EGP", nil)
 
@@ -140,6 +141,7 @@ func TestE2EConcurrentIdempotencyOverHTTP(t *testing.T) {
 	}
 }
 
+// TestE2EHTTPWorkerFrankfurterAndLatest checks the full flow from an HTTP request to the latest saved quote.
 func TestE2EHTTPWorkerFrankfurterAndLatest(t *testing.T) {
 	rig := newTestRig(t)
 
@@ -205,6 +207,7 @@ func TestE2EHTTPWorkerFrankfurterAndLatest(t *testing.T) {
 	}
 }
 
+// TestE2EProviderRetriesAndPermanentFailures checks retries for temporary errors and failure for permanent errors.
 func TestE2EProviderRetriesAndPermanentFailures(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -284,6 +287,7 @@ func TestE2EProviderRetriesAndPermanentFailures(t *testing.T) {
 	}
 }
 
+// TestE2EWorkerRestartReclaimsInterruptedJob checks that a new worker takes over a job after the old worker stops.
 func TestE2EWorkerRestartReclaimsInterruptedJob(t *testing.T) {
 	rig := newTestRig(t)
 	entered := make(chan struct{}, 1)

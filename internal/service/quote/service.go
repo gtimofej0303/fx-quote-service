@@ -20,7 +20,7 @@ func New(repository Repository) (*Service, error) {
 	return &Service{repository: repository}, nil
 }
 
-// RequestUpdate validates the input and creates or retrieves a quote update job.
+// RequestUpdate checks input and creates a job or returns an existing one.
 func (s *Service) RequestUpdate(ctx context.Context, rawPair string, key *string) (domain.UpdateJob, error) {
 	pair, err := domain.ParseCurrencyPair(rawPair)
 	if err != nil {
@@ -49,13 +49,13 @@ func (s *Service) RequestUpdate(ctx context.Context, rawPair string, key *string
 	return job, nil
 }
 
-// Update contains a job and its quote, if the update succeeded.
+// Update holds a job and its quote if it succeeded.
 type Update struct {
 	Job   domain.UpdateJob
 	Quote *domain.Quote
 }
 
-// GetUpdate returns a quote update job and its result if available.
+// GetUpdate returns a job and its result, if ready.
 func (s *Service) GetUpdate(ctx context.Context, id int64) (Update, error) {
 	if id <= 0 {
 		return Update{}, ErrInvalidUpdateID
@@ -82,8 +82,8 @@ func (s *Service) GetUpdate(ctx context.Context, id int64) (Update, error) {
 	q, err := s.repository.GetQuoteByUpdateID(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrQuoteNotFound) {
-			// The update exists and has succeeded: missing its quote is a broken
-			// invariant, NOT an HTTP 404 for the update resource.
+			// A successful job must have a quote.
+			// A missing quote is a data error. Do not return HTTP 404 for this job.
 			return Update{}, fmt.Errorf("%w: succeeded update %d has no quote: %v", ErrInconsistentResult, id, err)
 		}
 
@@ -103,7 +103,7 @@ func (s *Service) GetUpdate(ctx context.Context, id int64) (Update, error) {
 	return result, nil
 }
 
-// GetLatestQuote returns the latest stored quote for a currency pair.
+// GetLatestQuote returns the latest saved quote for a currency pair.
 func (s *Service) GetLatestQuote(ctx context.Context, rawPair string) (domain.Quote, error) {
 	pair, err := domain.ParseCurrencyPair(rawPair)
 	if err != nil {

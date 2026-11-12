@@ -12,8 +12,8 @@ import (
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
-// parseRateResponse validates the required v2 rate fields and their direction.
-// JSON rate is treated as a decimal token (not as float64).
+// parseRateResponse checks the required v2 fields and the currency order.
+// Read the rate as decimal text to keep its exact value.
 func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.Price, domain.SourceDate, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 
@@ -51,8 +51,8 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 		case "date", "base", "quote", "rate":
 			fields[name] = raw
 		default:
-			// Unknown fields may extend the provider contract. Their values
-			// must still be valid JSON within the response body's size limit.
+			// Allow extra fields from the provider.
+			// Their JSON must be valid and fit within the size limit.
 		}
 	}
 
@@ -97,14 +97,14 @@ func parseRateResponse(data []byte, expectedBase, expectedQuote string) (domain.
 	return price, sourceDate, nil
 }
 
-// parseJSONDecimal converts a JSON number (including scientific notation) into
-// a decimal string that domain.ParsePrice can validate exactly. Never rounds.
+// parseJSONDecimal turns a JSON number, such as 1e2, into decimal text.
+// domain.ParsePrice checks the text. No rounding is allowed.
 func parseJSONDecimal(raw json.RawMessage) (domain.Price, error) {
 	if len(raw) == 0 || raw[0] < '0' || raw[0] > '9' {
 		return domain.Price{}, errors.New("rate must be a positive JSON number")
 	}
 
-	// Bounded even if the upstream sends a huge integer/exponent.
+	// Limit the size, even if the provider sends a huge number.
 	if len(raw) > 256 {
 		return domain.Price{}, errors.New("rate number is too long")
 	}
@@ -129,6 +129,7 @@ func parseJSONDecimal(raw json.RawMessage) (domain.Price, error) {
 		exponent = parsed
 	}
 
+	// Count digits before the decimal point.
 	intDigits := len(mantissa)
 	if dot := strings.IndexByte(mantissa, '.'); dot >= 0 {
 		intDigits = dot
@@ -136,8 +137,10 @@ func parseJSONDecimal(raw json.RawMessage) (domain.Price, error) {
 		mantissa = strings.Replace(mantissa, ".", "", 1)
 	}
 
+	// Find where the decimal point should go after applying the exponent.
 	point := intDigits + exponent
 
+	// Raw result.
 	var plain string
 
 	switch {
@@ -149,9 +152,10 @@ func parseJSONDecimal(raw json.RawMessage) (domain.Price, error) {
 		plain = mantissa[:point] + "." + mantissa[point:]
 	}
 
-	// A JSON number cannot have integer leading zeroes, but exponent shifting
-	// can create them (e.g. 0.001e4 -> 0010). Normalize only that syntax.
+	// JSON does not allow extra zeros before a whole number.
+	// Moving the decimal point can add them (0.001e4 -> 0010). Remove them.
 	if dot := strings.IndexByte(plain, '.'); dot >= 0 {
+		// Get the whole-number part before the decimal point.
 		whole := strings.TrimLeft(plain[:dot], "0")
 
 		if whole == "" {

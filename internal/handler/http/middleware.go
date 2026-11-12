@@ -11,8 +11,7 @@ import (
 
 type requestIDContextKey struct{}
 
-// Leave time to cancel database work and send JSON before the server's 10s
-// write deadline. The server's read timeout separately bounds body reads.
+// Limit each request to 5 seconds, this is time to send a response before the server's 10-second write timeout.
 const requestTimeout = 5 * time.Second
 
 func withRequestDeadline(next http.Handler, timeout time.Duration) http.Handler {

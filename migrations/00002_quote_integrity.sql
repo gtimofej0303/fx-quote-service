@@ -82,7 +82,7 @@ $$;
 
 CREATE CONSTRAINT TRIGGER succeeded_job_requires_quote
     AFTER INSERT OR UPDATE ON quote_updates
-    DEFERRABLE INITIALLY DEFERRED
+    DEFERRABLE INITIALLY DEFERRED -- Checks in the end of transaction.
     FOR EACH ROW WHEN (NEW.status = 'succeeded')
     EXECUTE FUNCTION enforce_succeeded_job_has_quote();
 
@@ -107,7 +107,7 @@ $$;
 
 CREATE CONSTRAINT TRIGGER succeeded_job_preserves_quote
     AFTER DELETE OR UPDATE ON quotes
-    DEFERRABLE INITIALLY DEFERRED
+    DEFERRABLE INITIALLY DEFERRED -- Checks in the end of transaction.
     FOR EACH ROW
     EXECUTE FUNCTION enforce_quote_removal_preserves_success();
 

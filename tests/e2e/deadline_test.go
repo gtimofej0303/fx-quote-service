@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// TestE2EDatabaseLockReturnsJSONTimeoutAndAllowsSafeRetry checks that a database lock causes a JSON timeout and a retry stays safe.
 func TestE2EDatabaseLockReturnsJSONTimeoutAndAllowsSafeRetry(t *testing.T) {
 	rig := newTestRig(t)
 	id := rig.post(t, "EUR/EGP", nil)

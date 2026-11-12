@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParseJSONDecimalExactAndScientific checks exact decimal values and numbers such as 1e2.
 func TestParseJSONDecimalExactAndScientific(t *testing.T) {
 	cases := []struct {
 		raw, want string
@@ -33,6 +34,7 @@ func TestParseJSONDecimalExactAndScientific(t *testing.T) {
 	}
 }
 
+// TestParseJSONDecimalInvalid checks that invalid or too large numbers are rejected.
 func TestParseJSONDecimalInvalid(t *testing.T) {
 	cases := []string{
 		"", "null", "true", `"1.2"`, "0", "-1.2", "1e-19",
@@ -49,6 +51,7 @@ func TestParseJSONDecimalInvalid(t *testing.T) {
 	}
 }
 
+// TestParseRateResponseRequiresExactDirectionAndFields checks required rate fields and the currency order.
 func TestParseRateResponseRequiresExactDirectionAndFields(t *testing.T) {
 	data := []byte(`{"date":"2026-11-06","base":"USD","quote":"EUR","rate":0.9}`)
 

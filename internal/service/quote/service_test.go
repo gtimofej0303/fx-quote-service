@@ -13,7 +13,7 @@ import (
 
 var testTime = time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
 
-// fakeRepository is a test implementation of the Repository interface.
+// fakeRepository acts as the repository in tests.
 type fakeRepository struct {
 	createFn  func(context.Context, domain.CurrencyPair, *string) (domain.UpdateJob, error)
 	jobFn     func(context.Context, int64) (domain.UpdateJob, error)
@@ -22,6 +22,7 @@ type fakeRepository struct {
 	successFn func(context.Context, domain.Quote, string) error
 }
 
+// CreateJob calls the test function that creates a job.
 func (f *fakeRepository) CreateJob(ctx context.Context, pair domain.CurrencyPair, key *string) (domain.UpdateJob, error) {
 	if f.createFn == nil {
 		panic("unexpected CreateJob")
@@ -30,6 +31,7 @@ func (f *fakeRepository) CreateJob(ctx context.Context, pair domain.CurrencyPair
 	return f.createFn(ctx, pair, key)
 }
 
+// GetJob calls the test function that gets a job.
 func (f *fakeRepository) GetJob(ctx context.Context, id int64) (domain.UpdateJob, error) {
 	if f.jobFn == nil {
 		panic("unexpected GetJob")
@@ -38,6 +40,7 @@ func (f *fakeRepository) GetJob(ctx context.Context, id int64) (domain.UpdateJob
 	return f.jobFn(ctx, id)
 }
 
+// GetQuoteByUpdateID calls the test function that gets a job's quote.
 func (f *fakeRepository) GetQuoteByUpdateID(ctx context.Context, id int64) (domain.Quote, error) {
 	if f.byIDFn == nil {
 		panic("unexpected GetQuoteByUpdateID")
@@ -46,6 +49,7 @@ func (f *fakeRepository) GetQuoteByUpdateID(ctx context.Context, id int64) (doma
 	return f.byIDFn(ctx, id)
 }
 
+// GetLatestQuote calls the test function that gets the latest quote.
 func (f *fakeRepository) GetLatestQuote(ctx context.Context, pair domain.CurrencyPair) (domain.Quote, error) {
 	if f.latestFn == nil {
 		panic("unexpected GetLatestQuote")
@@ -54,6 +58,7 @@ func (f *fakeRepository) GetLatestQuote(ctx context.Context, pair domain.Currenc
 	return f.latestFn(ctx, pair)
 }
 
+// SaveSuccess calls the test function that saves a quote.
 func (f *fakeRepository) SaveSuccess(ctx context.Context, q domain.Quote, token string) error {
 	if f.successFn == nil {
 		panic("unexpected SaveSuccess")
@@ -64,7 +69,7 @@ func (f *fakeRepository) SaveSuccess(ctx context.Context, q domain.Quote, token 
 
 var _ service.Repository = (*fakeRepository)(nil)
 
-// pendingJob creates a valid pending job for tests.
+// pendingJob creates a valid waiting job for tests.
 func pendingJob(t *testing.T) domain.UpdateJob {
 	t.Helper()
 
@@ -76,7 +81,7 @@ func pendingJob(t *testing.T) domain.UpdateJob {
 	return job
 }
 
-// processingJob создаёт задание со статусом processing и активной арендой.
+// processingJob creates a running job with an active lease.
 func processingJob(t *testing.T) domain.UpdateJob {
 	t.Helper()
 
@@ -92,7 +97,7 @@ func processingJob(t *testing.T) domain.UpdateJob {
 	return job
 }
 
-// savedQuote creates a valid quote with a high-precision price.
+// savedQuote creates a valid quote with an exact price.
 func savedQuote(t *testing.T) domain.Quote {
 	t.Helper()
 
@@ -114,7 +119,7 @@ func savedQuote(t *testing.T) domain.Quote {
 	return q
 }
 
-// newService creates a service using a fake repository.
+// newService creates a service with a test repository.
 func newService(t *testing.T, repo *fakeRepository) *service.Service {
 	t.Helper()
 
@@ -126,14 +131,14 @@ func newService(t *testing.T, repo *fakeRepository) *service.Service {
 	return s
 }
 
-// TestNewRequiresRepository verifies that a repository is required.
+// Check that a service needs a repository.
 func TestNewRequiresRepository(t *testing.T) {
 	if _, err := service.New(nil); !errors.Is(err, service.ErrMissingRepository) {
 		t.Fatalf("nil repository: %v", err)
 	}
 }
 
-// TestRequestUpdateValidatesAndNormalizes checks input validation and normalization.
+// Check input rules and format changes.
 func TestRequestUpdateValidatesAndNormalizes(t *testing.T) {
 	ctx := context.Background()
 	key := "Op-42:EUR_EGP"
@@ -184,10 +189,10 @@ func TestRequestUpdateValidatesAndNormalizes(t *testing.T) {
 	}
 }
 
-// ptr returns a pointer to the provided string.
+// ptr returns a pointer to a string.
 func ptr(s string) *string { return &s }
 
-// TestRequestUpdateIdempotencyAndErrors checks idempotency and repository errors.
+// Check repeated requests with the same key and database errors.
 func TestRequestUpdateIdempotencyAndErrors(t *testing.T) {
 	ctx := context.Background()
 	persisted := pendingJob(t)
@@ -252,7 +257,7 @@ func TestRequestUpdateIdempotencyAndErrors(t *testing.T) {
 	}
 }
 
-// TestGetUpdateByStatus checks the result returned for each job status.
+// Check the result for each job status.
 func TestGetUpdateByStatus(t *testing.T) {
 	base := pendingJob(t)
 	saved := savedQuote(t)
@@ -323,7 +328,7 @@ func TestGetUpdateByStatus(t *testing.T) {
 	}
 }
 
-// TestGetUpdateRejectsBadIDAndPropagatesStorageErrors checks invalid IDs and storage failures.
+// Check invalid IDs and database errors.
 func TestGetUpdateRejectsBadIDAndPropagatesStorageErrors(t *testing.T) {
 	missing := service.ErrUpdateNotFound
 
@@ -391,7 +396,7 @@ func TestGetUpdateRejectsBadIDAndPropagatesStorageErrors(t *testing.T) {
 	}
 }
 
-// TestGetLatestQuoteValidationAndRepositoryContract checks latest-quote validation.
+// Check input and database results for the latest quote.
 func TestGetLatestQuoteValidationAndRepositoryContract(t *testing.T) {
 	calls := 0
 

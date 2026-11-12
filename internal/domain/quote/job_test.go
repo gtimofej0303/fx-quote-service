@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestStatusTransitions checks which job status changes are allowed.
 func TestStatusTransitions(t *testing.T) {
 	allowed := [][2]JobStatus{
 		{JobPending, JobProcessing},
@@ -43,6 +44,7 @@ func TestStatusTransitions(t *testing.T) {
 	}
 }
 
+// TestIdempotencyKeyValidation checks the rules for request keys.
 func TestIdempotencyKeyValidation(t *testing.T) {
 	for _, key := range []string{"a", "Operation-123:EUR_USD.1", strings.Repeat("x", 128)} {
 		if err := ValidateIdempotencyKey(key); err != nil {
@@ -57,6 +59,7 @@ func TestIdempotencyKeyValidation(t *testing.T) {
 	}
 }
 
+// TestUpdateFailureCodes checks valid and invalid job error codes.
 func TestUpdateFailureCodes(t *testing.T) {
 	for _, code := range []FailureCode{
 		FailureProviderTimeout, FailureProviderUnavailable, FailureProviderRateLimited,
@@ -78,6 +81,7 @@ func TestUpdateFailureCodes(t *testing.T) {
 	}
 }
 
+// TestUpdateJobStateInvariants checks that job fields match the job status.
 func TestUpdateJobStateInvariants(t *testing.T) {
 	created := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
 	key := "operation-123"
@@ -99,7 +103,6 @@ func TestUpdateJobStateInvariants(t *testing.T) {
 		t.Fatalf("processing: %v", err)
 	}
 
-	// An expired lease remains a valid persisted processing state until recovery.
 	processing.Lease.Until = created.Add(time.Second)
 	if err := processing.Validate(); err != nil {
 		t.Fatalf("expired but valid lease: %v", err)
@@ -159,6 +162,7 @@ func TestUpdateJobStateInvariants(t *testing.T) {
 	}
 }
 
+// TestNewPendingJobRejectsInvalidData checks that a new waiting job rejects invalid data.
 func TestNewPendingJobRejectsInvalidData(t *testing.T) {
 	now := time.Now()
 

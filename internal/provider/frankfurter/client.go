@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	// BaseURL is the public Frankfurter v2 API origin.
+	// BaseURL is the Frankfurter v2 API address.
 	BaseURL          = "https://api.frankfurter.dev"
 	requestTimeout   = 8 * time.Second
 	maxResponseBytes = 32 * 1024
 )
 
-// Client implements the existing quote.RateProvider interface.
+// Client stores the Frankfurter API address, HTTP client, and clock used to fetch rates.
 type Client struct {
 	baseURL string
 	http    *http.Client
@@ -31,14 +31,14 @@ type Client struct {
 
 var _ quoteservice.RateProvider = (*Client)(nil)
 
-// New returns the production client. The API requires no authentication.
+// New creates the API client. No login or API key is needed.
 func New() *Client {
-	c, _ := NewWithBaseURL(BaseURL, nil) // The constant BaseURL is always valid.
+	c, _ := NewWithBaseURL(BaseURL, nil) // BaseURL is always valid.
 
 	return c
 }
 
-// NewWithBaseURL permits an injected HTTP server/client in tests.
+// NewWithBaseURL lets tests use their own server and client.
 func NewWithBaseURL(baseURL string, httpClient *http.Client) (*Client, error) {
 	u, err := url.Parse(baseURL)
 
@@ -54,7 +54,7 @@ func NewWithBaseURL(baseURL string, httpClient *http.Client) (*Client, error) {
 
 	copyClient := *httpClient
 
-	// Do not follow redirects to another origin or make a second hidden request.
+	// Do not follow redirects or send an extra request.
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	return &Client{
@@ -64,14 +64,14 @@ func NewWithBaseURL(baseURL string, httpClient *http.Client) (*Client, error) {
 	}, nil
 }
 
-// FetchRate fetches the provider-supplied rate.
+// FetchRate gets a rate from the provider.
 func (c *Client) FetchRate(ctx context.Context, pair domain.CurrencyPair) (quoteservice.FetchedRate, error) {
 	if err := pair.Validate(); err != nil {
 		return quoteservice.FetchedRate{}, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		return quoteservice.FetchedRate{}, err // Preserve worker shutdown/deadline.
+		return quoteservice.FetchedRate{}, err // Keep the worker's stop or timeout error.
 	}
 
 	base, quote := string(pair[:3]), string(pair[4:])
@@ -160,7 +160,7 @@ func classifyHTTPStatus(status int) error {
 		return providerError(domain.FailureProviderUnavailable, "Quote provider is temporarily unavailable", cause)
 	case status >= 400 && status < 500:
 		return providerError(domain.FailureProviderRejectedRequest, "Quote provider rejected the request", cause)
-	default: // Redirects and unexpected success codes are invalid for this endpoint.
+	default: // Reject redirects and unexpected success codes.
 		return providerError(domain.FailureProviderInvalidResponse, "Unexpected quote provider status", cause)
 	}
 }

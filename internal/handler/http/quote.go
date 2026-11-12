@@ -28,7 +28,7 @@ const (
 	updateItemPrefix     = updateCollectionPath + "/"
 )
 
-// QuoteService is the application use cases needed by the HTTP adapter.
+// QuoteService describes the quote operations used by the HTTP handlers.
 type QuoteService interface {
 	RequestUpdate(context.Context, string, *string) (domain.UpdateJob, error)
 	GetUpdate(context.Context, int64) (quoteservice.Update, error)
@@ -40,7 +40,7 @@ type quoteHandler struct {
 	logger  *slog.Logger
 }
 
-// POST /api/v1/quote-updates persists a job; it never fetches a remote rate.
+// POST /api/v1/quote-updates create a job; it never fetches a remote rate.
 func (h quoteHandler) requestUpdate(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
@@ -131,7 +131,7 @@ func (h quoteHandler) requestUpdate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, updateAcceptedResponse{ID: job.ID})
 }
 
-// decodeUpdatePair rejects unknown/duplicate fields, missing/null pair and extra JSON values.
+// decodeUpdatePair rejects unknown or repeated fields, a missing or null pair, and extra JSON values.
 func decodeUpdatePair(data []byte) (pair, errorCode string) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 

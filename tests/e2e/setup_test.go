@@ -26,8 +26,8 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/worker"
 )
 
-// This package intentionally has its own setup: tests/e2e and
-// tests/integration are separate Go packages and must run sequentially.
+// This package has its own test setup.
+// Run tests/e2e and tests/integration one at a time.
 type testRig struct {
 	ctx     context.Context
 	db      *sql.DB
@@ -38,6 +38,7 @@ type testRig struct {
 	logger  *slog.Logger
 }
 
+// newTestRig creates the test database connection, service, and HTTP server.
 func newTestRig(t *testing.T) *testRig {
 	t.Helper()
 
@@ -103,8 +104,10 @@ type httpResult struct {
 	body   []byte
 }
 
+// keyPtr returns a pointer to the key string.
 func keyPtr(value string) *string { return &value }
 
+// request sends an HTTP request and reads the response.
 func (r *testRig) request(ctx context.Context, method, path string, body []byte, key *string) (httpResult, error) {
 	req, err := http.NewRequestWithContext(ctx, method, r.api.URL+path, bytes.NewReader(body))
 	if err != nil {
@@ -134,6 +137,7 @@ func (r *testRig) request(ctx context.Context, method, path string, body []byte,
 	return httpResult{status: res.StatusCode, header: res.Header.Clone(), body: data}, nil
 }
 
+// decodeResult reads the JSON response into the given value.
 func decodeResult(t *testing.T, result httpResult, into any) {
 	t.Helper()
 
@@ -171,6 +175,7 @@ type wireLatest struct {
 	SourceDate string `json:"source_date"`
 }
 
+// post creates a job through HTTP and returns its ID.
 func (r *testRig) post(t *testing.T, pair string, key *string) int64 {
 	t.Helper()
 
@@ -194,6 +199,7 @@ func (r *testRig) post(t *testing.T, pair string, key *string) int64 {
 	return job.ID
 }
 
+// getUpdate gets a job through HTTP and checks the response.
 func (r *testRig) getUpdate(t *testing.T, id int64) wireUpdate {
 	t.Helper()
 
@@ -213,6 +219,7 @@ func (r *testRig) getUpdate(t *testing.T, id int64) wireUpdate {
 	return update
 }
 
+// waitStatus waits until the job reaches the expected status.
 func (r *testRig) waitStatus(t *testing.T, id int64, expected string, duration time.Duration) wireUpdate {
 	t.Helper()
 
@@ -241,6 +248,7 @@ func (r *testRig) waitStatus(t *testing.T, id int64, expected string, duration t
 	}
 }
 
+// newFakeFrankfurter creates a rate client connected to a test server.
 func newFakeFrankfurter(t *testing.T, handler http.HandlerFunc) *frankfurter.Client {
 	t.Helper()
 
@@ -255,6 +263,7 @@ func newFakeFrankfurter(t *testing.T, handler http.HandlerFunc) *frankfurter.Cli
 	return client
 }
 
+// startWorkers starts test workers and returns a function that stops them.
 func (r *testRig) startWorkers(t *testing.T, provider quoteservice.RateProvider, count int) func() {
 	t.Helper()
 

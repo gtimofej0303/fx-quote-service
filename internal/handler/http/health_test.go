@@ -18,10 +18,12 @@ type fakePinger struct {
 	err error
 }
 
+// PingContext returns the test result for a database health check.
 func (p fakePinger) PingContext(ctx context.Context) error {
 	return p.err
 }
 
+// TestHealthEndpoints checks the health and readiness HTTP responses.
 func TestHealthEndpoints(t *testing.T) {
 	tests := []struct {
 		name   string

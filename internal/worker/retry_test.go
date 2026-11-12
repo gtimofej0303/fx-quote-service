@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestRetryDelay checks the wait time after each failed try.
 func TestRetryDelay(t *testing.T) {
 	cases := []struct {
 		attempt int

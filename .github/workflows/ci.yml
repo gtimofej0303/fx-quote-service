@@ -1,35 +1,52 @@
 name: CI
 
+# Choose when the workflow runs.
 on:
+  # Run on pushes to the selected branch.
   push:
+    # Check pushes to main.
     branches: [main]
+  # Check pull requests.
   pull_request:
+  # Allow manual runs.
   workflow_dispatch:
 
+# Set workflow token access.
 permissions:
+  # Allow reading repository code.
   contents: read
 
 # Superseded runs on the same branch/PR do not consume runner time.
+# Group runs to avoid old work.
 concurrency:
+  # Group runs by workflow and Git reference.
   group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Cancel an older run when a new run starts.
   cancel-in-progress: true
 
 jobs:
   verify:
     name: Go, OpenAPI, PostgreSQL and E2E
+    # Use an Ubuntu runner.
     runs-on: ubuntu-latest
+    # Stop the job after this many minutes.
     timeout-minutes: 20
 
     # Disposable CI-only credentials and database. No project .env is used.
     services:
       postgres:
+        # Choose the container image.
         image: postgres:17-alpine
         env:
+          # Set the database user.
           POSTGRES_USER: fxquote
+          # Set the database password.
           POSTGRES_PASSWORD: ci_only_password
+          # Set the database name.
           POSTGRES_DB: fxquote_test
         ports:
           - 5432:5432
+        # Check health every 3 seconds, with a 3-second limit and 20 retries.
         options: >-
           --health-cmd "pg_isready -U fxquote -d fxquote_test"
           --health-interval 3s
@@ -37,60 +54,91 @@ jobs:
           --health-retries 20
 
     env:
+      # Use the separate CI test database.
       TEST_DATABASE_URL: postgres://fxquote:ci_only_password@127.0.0.1:5432/fxquote_test?sslmode=disable
+      # Set the amount of detail in logs.
       LOG_LEVEL: info
 
     steps:
+      # Run this step: Check out code.
       - name: Check out code
         uses: actions/checkout@v7
         with:
+          # Do not keep the GitHub token in Git settings.
           persist-credentials: false
 
+      # Run this step: Set up Go.
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
+          # Use the same Go version as Docker.
           go-version: '1.27.3'
+          # Reuse downloaded Go modules.
           cache: true
+          # Update the cache when go.sum changes.
           cache-dependency-path: go.sum
 
+      # Run this step: Download Go modules.
       - name: Download Go modules
+        # Run the command for this check.
         run: go mod download
 
+      # Run this step: Enforce gofmt.
       - name: Enforce gofmt
         shell: bash
+        # Run the command for this check.
         run: |
+          # Find files that need formatting; print their names and fail if any are found.
           unformatted=$(git ls-files -z -- '*.go' | xargs -0 -r gofmt -l)
           if [ -n "$unformatted" ]; then
             printf 'Go files require gofmt:\n%s\n' "$unformatted"
             exit 1
           fi
 
+      # Run this step: Unit tests.
       - name: Unit tests
+        # Run the command for this check.
         run: go test -count=1 ./...
 
+      # Run this step: Static analysis.
       - name: Static analysis
+        # Run the command for this check.
         run: go vet ./...
 
+      # Run this step: Compile API and migration entry points.
       - name: Compile API and migration entry points
+        # Run the command for this check.
         run: go build ./cmd/api ./cmd/migrate
 
+      # Run this step: Set up Node for OpenAPI validation.
       - name: Set up Node for OpenAPI validation
         uses: actions/setup-node@v7
         with:
+          # Choose the Node.js version for API checks.
           node-version: '24'
+          # Skip the Node cache because this project has no lock file.
           package-manager-cache: false
 
+      # Run this step: Validate OpenAPI 3 specification.
       - name: Validate OpenAPI 3 specification
+        # Run the command for this check.
         run: npx --yes @redocly/cli@2.76.0 lint api/openapi.yaml
 
+      # Run this step: Migrate isolated test database.
       - name: Migrate isolated test database
         env:
+          # Use the test database for migrations.
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        # Run the command for this check.
         run: go run ./cmd/migrate up
 
       # Separate steps are deliberate: both test packages TRUNCATE the same DB.
+      # Run this step: Integration tests (PostgreSQL).
       - name: Integration tests (PostgreSQL)
+        # Run the command for this check.
         run: go test -tags=integration -count=1 -v ./tests/integration
 
+      # Run this step: End-to-end tests (HTTP, PostgreSQL, workers, fake Frankfurter).
       - name: End-to-end tests (HTTP, PostgreSQL, workers, fake Frankfurter)
+        # Run the command for this check.
         run: go test -tags=e2e -count=1 -v ./tests/e2e

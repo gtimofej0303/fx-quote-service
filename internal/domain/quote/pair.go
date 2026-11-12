@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// CurrencyPair is a directed quote: A/B means units of B for one unit of A.
-// Only canonical, upper-case values produced by ParseCurrencyPair are valid.
+// CurrencyPair uses A/B: the amount of B for one unit of A.
+// Only uppercase values from ParseCurrencyPair are valid.
 type CurrencyPair string
 
 const (
@@ -18,8 +18,7 @@ const (
 	PairEGPEUR CurrencyPair = "EGP/EUR"
 )
 
-// ParseCurrencyPair tolerates only surrounding whitespace and letter case.
-// Malformed syntax differs from a well-formed but unsupported pair.
+// Parse and format the pair
 func ParseCurrencyPair(raw string) (CurrencyPair, error) {
 	trimmed := strings.TrimSpace(raw)
 	if len(trimmed) != 7 || trimmed[3] != '/' {
@@ -47,7 +46,6 @@ func ParseCurrencyPair(raw string) (CurrencyPair, error) {
 
 func (p CurrencyPair) String() string { return string(p) }
 
-// Validate also rejects non-canonical values created by direct type conversion.
 func (p CurrencyPair) Validate() error {
 	value := string(p)
 

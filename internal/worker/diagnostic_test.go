@@ -14,6 +14,7 @@ import (
 	quoteservice "github.com/gtimofej0303/fx-quote-service/internal/service/quote"
 )
 
+// TestWorkerLogsDiagnosticBeforeFinalization checks that the worker logs the internal error before saving the final status.
 func TestWorkerLogsDiagnosticBeforeFinalization(t *testing.T) {
 	databaseErr := errors.New("database write failed")
 	cases := []struct {

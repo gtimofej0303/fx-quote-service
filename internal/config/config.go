@@ -27,6 +27,7 @@ func Load() (Config, error) {
 			}
 		}
 	}
+
 	if _, _, err := net.SplitHostPort(cfg.HTTPAddr); err != nil {
 		return Config{}, fmt.Errorf("invalid HTTP_ADDR %q: %w", cfg.HTTPAddr, err)
 	}
@@ -43,6 +44,7 @@ func Load() (Config, error) {
 	default:
 		return Config{}, fmt.Errorf("LOG_LEVEL must be debug, info, warn or error")
 	}
+
 	return cfg, nil
 }
 
@@ -50,5 +52,6 @@ func envOrDefault(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
+
 	return fallback
 }

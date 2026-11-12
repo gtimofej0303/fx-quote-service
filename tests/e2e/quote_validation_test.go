@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// TestE2EFutureSourceDateDoesNotPoisonLatest checks that a future source date cannot replace the latest valid quote.
 func TestE2EFutureSourceDateDoesNotPoisonLatest(t *testing.T) {
 	rig := newTestRig(t)
 

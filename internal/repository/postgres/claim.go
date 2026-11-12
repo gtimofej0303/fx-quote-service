@@ -18,8 +18,8 @@ func leaseSeconds(duration time.Duration) (int, error) {
 	return int(duration / time.Second), nil
 }
 
-// ClaimNext atomically reserves one due pending or expired processing job.
-// SKIP LOCKED lets concurrent workers claim different rows without waiting.
+// ClaimNext takes one ready job or a running job with an expired lease in one step.
+// SKIP LOCKED lets workers take different jobs without waiting.
 func (r *Repository) ClaimNext(ctx context.Context, duration time.Duration, maxAttempts int) (quote.UpdateJob, error) {
 	seconds, err := leaseSeconds(duration)
 	if err != nil {
@@ -33,7 +33,7 @@ func (r *Repository) ClaimNext(ctx context.Context, duration time.Duration, maxA
 	job, err := scanJob(r.db.QueryRowContext(ctx, `
 		WITH picked AS (
 		    SELECT id FROM quote_updates
-		    WHERE attempts < $1 AND (
+		    WHERE attempts <$1  AND (
 		        (status = 'pending' AND next_attempt_at <= statement_timestamp()) OR
 		        (status = 'processing' AND locked_until <= statement_timestamp())
 		    )
@@ -61,7 +61,7 @@ func (r *Repository) ClaimNext(ctx context.Context, duration time.Duration, maxA
 	return job, nil
 }
 
-// RenewLease is optional for a short provider request, but supports heartbeats.
+// RenewLease extends a lease. Short requests may not need it.
 func (r *Repository) RenewLease(ctx context.Context, id int64, token string, duration time.Duration) (time.Time, error) {
 	seconds, err := leaseSeconds(duration)
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *Repository) RenewLease(ctx context.Context, id int64, token string, dur
 	return until.UTC(), nil
 }
 
-// ScheduleRetry releases the lease and makes the job eligible no earlier than nextAttemptAt.
+// ScheduleRetry ends the lease. The job can run again at nextAttemptAt or later.
 func (r *Repository) ScheduleRetry(ctx context.Context, id int64, token string, nextAttemptAt time.Time) error {
 	if id <= 0 || token == "" || nextAttemptAt.IsZero() {
 		return fmt.Errorf("%w: ID, token and retry time are required", ErrInvalidRepositoryArgument)
@@ -130,8 +130,8 @@ func (r *Repository) SaveFailure(ctx context.Context, id int64, token string, fa
 	return checkLeaseUpdate(res, err, "save job failure")
 }
 
-// FailExhausted finalizes due jobs that have no attempts left.
-// It also resolves processing jobs whose owners crashed on the last attempt.
+// FailExhausted closes ready jobs with no tries left.
+// It also closes jobs whose workers crashed on the last try.
 func (r *Repository) FailExhausted(ctx context.Context, maxAttempts, batchSize int) (int64, error) {
 	if maxAttempts <= 0 || batchSize <= 0 || batchSize > 1000 {
 		return 0, fmt.Errorf("%w: maxAttempts > 0 and batchSize in [1,1000] required", ErrInvalidRepositoryArgument)
@@ -159,6 +159,7 @@ func (r *Repository) FailExhausted(ctx context.Context, maxAttempts, batchSize i
 	return res.RowsAffected()
 }
 
+// checkLeaseUpdate checks that the lease operation changed exactly one row.
 func checkLeaseUpdate(res sql.Result, err error, operation string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", operation, err)

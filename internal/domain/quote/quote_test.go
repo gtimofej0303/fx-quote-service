@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestParseSourceDate checks valid and invalid source dates.
 func TestParseSourceDate(t *testing.T) {
 	for _, date := range []string{"2024-02-29", "2026-11-03", "0001-01-01"} {
 		parsed, err := ParseSourceDate(date)
@@ -21,6 +22,7 @@ func TestParseSourceDate(t *testing.T) {
 	}
 }
 
+// TestQuoteValidationAndUTC checks quote fields and UTC time conversion.
 func TestQuoteValidationAndUTC(t *testing.T) {
 	price := mustPrice(t, "61.96")
 	date := mustDate(t, "2026-11-03")
@@ -53,6 +55,7 @@ func TestQuoteValidationAndUTC(t *testing.T) {
 	}
 }
 
+// TestQuoteRecencyOrdering checks which quote is newer when dates, times, or IDs differ.
 func TestQuoteRecencyOrdering(t *testing.T) {
 	price := mustPrice(t, "1.23")
 	old := Quote{UpdateID: 1, Pair: PairUSDEUR, Price: price, SourceDate: mustDate(t, "2026-11-02"), UpdatedAt: time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC)}
@@ -83,6 +86,7 @@ func TestQuoteRecencyOrdering(t *testing.T) {
 	}
 }
 
+// TestQuoteSourceDateRelativeToRetrieval checks the source date against the time the quote was received.
 func TestQuoteSourceDateRelativeToRetrieval(t *testing.T) {
 	cases := []struct {
 		name, retrieved, source string
@@ -123,6 +127,7 @@ func TestQuoteSourceDateRelativeToRetrieval(t *testing.T) {
 	}
 }
 
+// mustDate parses a source date and fails the test if it is invalid.
 func mustDate(t *testing.T, s string) SourceDate {
 	t.Helper()
 
@@ -134,6 +139,7 @@ func mustDate(t *testing.T, s string) SourceDate {
 	return v
 }
 
+// mustPrice parses a price and fails the test if it is invalid.
 func mustPrice(t *testing.T, s string) Price {
 	t.Helper()
 

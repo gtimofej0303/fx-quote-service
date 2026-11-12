@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParseCurrencyPairAllDirections checks all supported currency pairs in both directions.
 func TestParseCurrencyPairAllDirections(t *testing.T) {
 	tests := []struct {
 		input string
@@ -27,6 +28,7 @@ func TestParseCurrencyPairAllDirections(t *testing.T) {
 	}
 }
 
+// TestParseCurrencyPairErrors checks that invalid and unsupported currency pairs are rejected.
 func TestParseCurrencyPairErrors(t *testing.T) {
 	tests := []struct {
 		input string

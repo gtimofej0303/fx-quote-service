@@ -9,6 +9,7 @@ import (
 	quoteservice "github.com/gtimofej0303/fx-quote-service/internal/service/quote"
 )
 
+// TestWorkerHonorsRetryNotBefore checks that the worker respects the provider's earliest retry time.
 func TestWorkerHonorsRetryNotBefore(t *testing.T) {
 	cases := []struct {
 		name      string

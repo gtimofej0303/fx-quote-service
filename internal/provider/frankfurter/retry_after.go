@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// parseRetryAfter accepts an HTTP date or an unsigned number of seconds.
-// Invalid values fall back to the worker's normal backoff. A uint32 seconds
-// bound (about 136 years) prevents overflow when converting to time.Duration.
+// parseRetryAfter reads an HTTP date or a number of seconds with no sign.
+// If the value is invalid, use the worker's normal retry delay.
+// Limit seconds to uint32 (about 136 years) so time.Duration fits.
 func parseRetryAfter(raw string, receivedAt time.Time) time.Time {
 	raw = strings.TrimSpace(raw)
 

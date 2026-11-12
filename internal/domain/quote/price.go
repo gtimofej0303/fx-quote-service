@@ -5,13 +5,12 @@ import (
 	"strings"
 )
 
-// Price is an exact, canonical positive decimal string. It deliberately does not use float64.
+// Price is an exact, canonical positive decimal string.
 type Price struct {
 	value string
 }
 
-// ParsePrice never rounds: unrepresentable scale or magnitude is an error.
-// It also normalizes trailing fractional zeros, including values from SQL.
+// ParsePrice parses a positive decimal price and checks its format.
 func ParsePrice(raw string) (Price, error) {
 	parts := strings.Split(raw, ".")
 
@@ -63,7 +62,7 @@ func ParsePrice(raw string) (Price, error) {
 
 func (p Price) String() string { return p.value }
 
-// Validate catches the zero value, which is never a valid exchange rate.
+// Validate checks that the price is valid and uses its canonical format.
 func (p Price) Validate() error {
 	parsed, err := ParsePrice(p.value)
 	if err != nil {

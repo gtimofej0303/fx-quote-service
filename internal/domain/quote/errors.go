@@ -2,8 +2,6 @@ package quote
 
 import "errors"
 
-// Errors in this package describe business rule violations.
-// The HTTP layer maps them to the public API error contract.
 var (
 	ErrInvalidPair           = errors.New("invalid currency pair")
 	ErrUnsupportedPair       = errors.New("unsupported currency pair")

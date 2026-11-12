@@ -16,6 +16,7 @@ import (
 	quoteservice "github.com/gtimofej0303/fx-quote-service/internal/service/quote"
 )
 
+// TestE2ERetryAfterPersistsAcrossWorkerRestart checks that the saved retry time survives a worker restart.
 func TestE2ERetryAfterPersistsAcrossWorkerRestart(t *testing.T) {
 	for _, status := range []int{429, 503} {
 		for _, asDate := range []bool{false, true} {
@@ -85,7 +86,7 @@ func TestE2ERetryAfterPersistsAcrossWorkerRestart(t *testing.T) {
 
 				stop()
 
-				// A fresh pool must observe the durable schedule after worker shutdown.
+				// A new pool must see the saved retry time after the worker stops.
 				db, err := postgres.Open(os.Getenv("TEST_DATABASE_URL"))
 				if err != nil {
 					t.Fatal(err)
@@ -106,7 +107,7 @@ func TestE2ERetryAfterPersistsAcrossWorkerRestart(t *testing.T) {
 					t.Fatalf("provider called too early: %d", calls.Load())
 				}
 
-				// Advance only the test row's schedule instead of sleeping a minute.
+				// Change this test job's retry time to avoid a minute of waiting.
 				if _, err := rig.db.ExecContext(rig.ctx, `UPDATE quote_updates SET next_attempt_at=statement_timestamp()-interval '1 second' WHERE id=$1`, id); err != nil {
 					t.Fatal(err)
 				}

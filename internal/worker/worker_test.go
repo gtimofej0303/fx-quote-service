@@ -29,6 +29,7 @@ type fakeQueue struct {
 	writeErr     error
 }
 
+// ClaimNext returns the test job once and records the lease settings.
 func (q *fakeQueue) ClaimNext(_ context.Context, lease time.Duration, max int) (domain.UpdateJob, error) {
 	q.claimCalls++
 
@@ -49,12 +50,14 @@ func (q *fakeQueue) ClaimNext(_ context.Context, lease time.Duration, max int) (
 	return job, nil
 }
 
+// FailExhausted records the settings and returns the test cleanup result.
 func (q *fakeQueue) FailExhausted(_ context.Context, max, batch int) (int64, error) {
 	q.maxSeen, q.batchSeen = max, batch
 
 	return q.exhausted, q.exhaustedErr
 }
 
+// ScheduleRetry records the retry time and returns the test write error.
 func (q *fakeQueue) ScheduleRetry(_ context.Context, id int64, token string, at time.Time) error {
 	if id <= 0 || token == "" {
 		panic("invalid retry arguments")
@@ -67,6 +70,7 @@ func (q *fakeQueue) ScheduleRetry(_ context.Context, id int64, token string, at 
 	return q.writeErr
 }
 
+// SaveFailure records the job failure and returns the test write error.
 func (q *fakeQueue) SaveFailure(_ context.Context, id int64, token string, failure domain.UpdateFailure) error {
 	if id <= 0 || token == "" {
 		panic("invalid failure arguments")
@@ -81,18 +85,21 @@ func (q *fakeQueue) SaveFailure(_ context.Context, id int64, token string, failu
 
 type fakeProcessor func(context.Context, domain.UpdateJob, quoteservice.RateProvider) (quoteservice.ProcessResult, error)
 
+// ProcessJob calls the test function that processes a job.
 func (p fakeProcessor) ProcessJob(ctx context.Context, j domain.UpdateJob, r quoteservice.RateProvider) (quoteservice.ProcessResult, error) {
 	return p(ctx, j, r)
 }
 
 type fakeProvider func(context.Context, domain.CurrencyPair) (quoteservice.FetchedRate, error)
 
+// FetchRate returns a rate or error from the test provider.
 func (p fakeProvider) FetchRate(ctx context.Context, pair domain.CurrencyPair) (quoteservice.FetchedRate, error) {
 	return p(ctx, pair)
 }
 
 var nowFixed = time.Date(2026, 11, 7, 18, 0, 0, 0, time.UTC)
 
+// validClaim creates a running test job with a valid lease.
 func validClaim(attempt int) domain.UpdateJob {
 	return domain.UpdateJob{
 		ID: 41, Pair: domain.PairUSDEGP, Status: domain.JobProcessing,
@@ -101,6 +108,7 @@ func validClaim(attempt int) domain.UpdateJob {
 	}
 }
 
+// testWorker creates a test worker with a fixed clock.
 func testWorker(t *testing.T, q *fakeQueue, p fakeProcessor) *Worker {
 	t.Helper()
 
@@ -120,6 +128,7 @@ func testWorker(t *testing.T, q *fakeQueue, p fakeProcessor) *Worker {
 	return worker
 }
 
+// TestNewValidatesDependencies checks that a worker needs a queue, processor, provider, and logger.
 func TestNewValidatesDependencies(t *testing.T) {
 	q := &fakeQueue{}
 
@@ -147,6 +156,7 @@ func TestNewValidatesDependencies(t *testing.T) {
 	}
 }
 
+// TestRunOneNoJobAndMaintenance checks queue cleanup when no job is ready.
 func TestRunOneNoJobAndMaintenance(t *testing.T) {
 	q := &fakeQueue{exhausted: 2}
 
@@ -165,6 +175,7 @@ func TestRunOneNoJobAndMaintenance(t *testing.T) {
 	}
 }
 
+// TestRunOneSuccess checks that a successful job needs no retry or failure write.
 func TestRunOneSuccess(t *testing.T) {
 	q := &fakeQueue{job: validClaim(1)}
 
@@ -189,6 +200,7 @@ func TestRunOneSuccess(t *testing.T) {
 	}
 }
 
+// TestRunOneRetryOrFailure checks when a job is retried or saved as failed.
 func TestRunOneRetryOrFailure(t *testing.T) {
 	temporary := domain.UpdateFailure{Code: domain.FailureProviderRateLimited, Message: "rate limit"}
 	permanent := domain.UpdateFailure{Code: domain.FailureProviderInvalidResponse, Message: "invalid response"}
@@ -231,6 +243,7 @@ func TestRunOneRetryOrFailure(t *testing.T) {
 	}
 }
 
+// TestRunOneErrorsAndLostLease checks queue errors and jobs that lose their lease.
 func TestRunOneErrorsAndLostLease(t *testing.T) {
 	failure := domain.UpdateFailure{Code: domain.FailureProviderUnavailable, Message: "unavailable"}
 
@@ -262,6 +275,7 @@ func TestRunOneErrorsAndLostLease(t *testing.T) {
 	}
 }
 
+// TestRunCancellationNeverFinalizesCanceledAttempt checks that canceling a worker does not save the current try as finished.
 func TestRunCancellationNeverFinalizesCanceledAttempt(t *testing.T) {
 	q := &fakeQueue{job: validClaim(1)}
 	started := make(chan struct{})
@@ -303,6 +317,7 @@ func TestRunCancellationNeverFinalizesCanceledAttempt(t *testing.T) {
 	}
 }
 
+// TestRunStartsImmediatelyAndDoesNotReclaim checks that the worker starts right away and takes the job only once.
 func TestRunStartsImmediatelyAndDoesNotReclaim(t *testing.T) {
 	q := &fakeQueue{job: validClaim(1)}
 

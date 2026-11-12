@@ -53,8 +53,8 @@ func (r *Repository) GetLatestQuote(ctx context.Context, pair quote.CurrencyPair
 	return result, nil
 }
 
-// SaveSuccess commits the price and succeeded status together, or neither.
-// A lease must still be owned and unexpired both before INSERT and at UPDATE.
+// SaveSuccess saves the price and success status together.
+// Check the lease owner and end time before INSERT and at UPDATE.
 func (r *Repository) SaveSuccess(ctx context.Context, q quote.Quote, token string) (err error) {
 	if err := q.Validate(); err != nil {
 		return fmt.Errorf("save successful quote: %w", err)
@@ -115,7 +115,7 @@ func (r *Repository) SaveSuccess(ctx context.Context, q quote.Quote, token strin
 	}
 
 	if count != 1 {
-		return ErrLeaseLost // deferred Rollback also removes the inserted quote
+		return ErrLeaseLost // Rollback also removes the new quote
 	}
 
 	if err := tx.Commit(); err != nil {

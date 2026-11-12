@@ -17,13 +17,14 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/worker"
 )
 
-// slowProvider makes concurrent claims overlap, without using the internet.
+// slowProvider delays requests so workers run at the same time without internet.
 type slowProvider struct {
 	calls  atomic.Int32
 	active atomic.Int32
 	peak   atomic.Int32
 }
 
+// FetchRate tracks active calls and returns a test rate after a short wait.
 func (p *slowProvider) FetchRate(ctx context.Context, _ domain.CurrencyPair) (quoteservice.FetchedRate, error) {
 	p.calls.Add(1)
 	active := p.active.Add(1)
@@ -58,8 +59,8 @@ func (p *slowProvider) FetchRate(ctx context.Context, _ domain.CurrencyPair) (qu
 	return quoteservice.FetchedRate{Price: price, SourceDate: date, UpdatedAt: time.Now().UTC()}, nil
 }
 
-// Two independent pools approximate two application instances sharing one queue.
-// In each pool two workers compete; no update may be processed twice.
+// Two database pools act like two apps sharing a queue.
+// Each pool has two workers. Each job must run only once.
 func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 	dbA, repoA, parent := openTestDatabase(t)
 
@@ -116,7 +117,7 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 		go func(w *worker.Worker) { done <- w.Run(ctx) }(w)
 	}
 
-	// Must run before either database pool's t.Cleanup.
+	// Run this before t.Cleanup closes either database pool.
 	t.Cleanup(func() {
 		cancel()
 
@@ -152,7 +153,7 @@ func TestConcurrentWorkersAcrossTwoDatabasePools(t *testing.T) {
 		}
 	}
 
-	// All successful writes have committed before we check the counters.
+	// All changes are saved before we check the counts.
 	if got := provider.calls.Load(); got != jobs {
 		t.Fatalf("provider calls = %d; want %d (no duplicate processing)", got, jobs)
 	}

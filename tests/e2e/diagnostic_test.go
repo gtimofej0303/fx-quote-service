@@ -19,18 +19,21 @@ type diagnosticLogBuffer struct {
 	buf bytes.Buffer
 }
 
+// Write adds data to the test log buffer safely.
 func (b *diagnosticLogBuffer) Write(data []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.Write(data)
 }
 
+// String reads the test log buffer safely.
 func (b *diagnosticLogBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
 }
 
+// TestE2EProviderDiagnosticIsLoggedButNotExposed checks that internal provider errors appear in logs but stay out of HTTP responses.
 func TestE2EProviderDiagnosticIsLoggedButNotExposed(t *testing.T) {
 	rig := newTestRig(t)
 	var logs diagnosticLogBuffer

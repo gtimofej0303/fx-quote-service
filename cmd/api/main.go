@@ -20,11 +20,13 @@ func main() {
 	}
 
 	logger := observability.NewLogger(cfg.LogLevel)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if err := bootstrap.Run(ctx, cfg, logger); err != nil {
 		logger.Error("application stopped with error", "error", err)
+
 		os.Exit(1)
 	}
 }

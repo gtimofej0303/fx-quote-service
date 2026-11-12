@@ -15,22 +15,27 @@ type serviceRepositoryStub struct {
 	saveCalls  int
 }
 
+// CreateJob panics if this unused test method is called.
 func (*serviceRepositoryStub) CreateJob(context.Context, domain.CurrencyPair, *string) (domain.UpdateJob, error) {
 	panic("not used by ProcessJob")
 }
 
+// GetJob panics if this unused test method is called.
 func (*serviceRepositoryStub) GetJob(context.Context, int64) (domain.UpdateJob, error) {
 	panic("not used by ProcessJob")
 }
 
+// GetQuoteByUpdateID panics if this unused test method is called.
 func (*serviceRepositoryStub) GetQuoteByUpdateID(context.Context, int64) (domain.Quote, error) {
 	panic("not used by ProcessJob")
 }
 
+// GetLatestQuote panics if this unused test method is called.
 func (*serviceRepositoryStub) GetLatestQuote(context.Context, domain.CurrencyPair) (domain.Quote, error) {
 	panic("not used by ProcessJob")
 }
 
+// SaveSuccess records the quote, lease token, and number of saves.
 func (r *serviceRepositoryStub) SaveSuccess(_ context.Context, q domain.Quote, token string) error {
 	r.savedQuote, r.savedToken = q, token
 
@@ -39,6 +44,7 @@ func (r *serviceRepositoryStub) SaveSuccess(_ context.Context, q domain.Quote, t
 	return nil
 }
 
+// TestRunOneCallsRealServiceAndProvider checks that the worker uses the real service to get and save a rate.
 func TestRunOneCallsRealServiceAndProvider(t *testing.T) {
 	repo := &serviceRepositoryStub{}
 

@@ -11,6 +11,7 @@ import (
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
+// TestRequestDeadlineReturnsJSONServiceUnavailable checks that a request timeout returns a JSON service error.
 func TestRequestDeadlineReturnsJSONServiceUnavailable(t *testing.T) {
 	svc := &fakeQuoteService{requestFn: func(ctx context.Context, _ string, _ *string) (job domain.UpdateJob, err error) {
 		<-ctx.Done()
@@ -26,6 +27,7 @@ func TestRequestDeadlineReturnsJSONServiceUnavailable(t *testing.T) {
 	assertError(t, rec, body, http.StatusServiceUnavailable, "service_unavailable")
 }
 
+// TestRequestDeadlinePreservesEarlierDeadlineAndCancelsOnReturn checks that an earlier time limit is kept and the context is canceled on return.
 func TestRequestDeadlinePreservesEarlierDeadlineAndCancelsOnReturn(t *testing.T) {
 	parent, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

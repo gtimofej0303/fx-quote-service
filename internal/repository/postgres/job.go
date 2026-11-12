@@ -9,15 +9,15 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
-// Repository uses the existing database/sql pool.
+// Repository uses the database/sql connection pool.
 type Repository struct {
 	db *sql.DB
 }
 
 func New(db *sql.DB) *Repository { return &Repository{db: db} }
 
-// CreateJob is concurrency-safe for both keyed and unkeyed requests.
-// ON CONFLICT DO NOTHING avoids mutating an existing job on a repeated POST.
+// CreateJob safely handles requests at the same time, with or without keys.
+// ON CONFLICT DO NOTHING keeps the old job when a POST is repeated.
 func (r *Repository) CreateJob(ctx context.Context, pair quote.CurrencyPair, key *string) (quote.UpdateJob, error) {
 	if err := pair.Validate(); err != nil {
 		return quote.UpdateJob{}, fmt.Errorf("create job: %w", err)
@@ -29,7 +29,7 @@ func (r *Repository) CreateJob(ctx context.Context, pair quote.CurrencyPair, key
 		}
 	}
 
-	// database/sql sees either a concrete string or nil (SQL NULL).
+	// Pass a string or nil (SQL NULL) to database/sql.
 	var sqlKey any
 
 	if key != nil {
@@ -55,8 +55,6 @@ func (r *Repository) CreateJob(ctx context.Context, pair quote.CurrencyPair, key
 		return quote.UpdateJob{}, fmt.Errorf("insert update job: unexpected conflict with absent key")
 	}
 
-	// After the conflicting transaction commits, a new READ COMMITTED statement
-	// sees its row. This also works for simultaneous requests with the same key.
 	existing, err := scanJob(r.db.QueryRowContext(ctx, `
 		SELECT id, pair, status, idempotency_key, attempts, next_attempt_at,
 		       created_at, completed_at, locked_until, lock_token::text,

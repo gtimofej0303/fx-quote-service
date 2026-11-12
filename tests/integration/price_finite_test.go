@@ -9,6 +9,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
+// TestDatabaseRejectsNaNPrice checks that the database rejects a NaN price.
 func TestDatabaseRejectsNaNPrice(t *testing.T) {
 	db, repo, ctx := openTestDatabase(t)
 	job := create(t, ctx, repo, quote.PairUSDEUR)

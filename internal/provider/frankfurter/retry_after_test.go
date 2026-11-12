@@ -11,6 +11,7 @@ import (
 	quoteservice "github.com/gtimofej0303/fx-quote-service/internal/service/quote"
 )
 
+// TestParseRetryAfter checks retry dates, seconds, and invalid values.
 func TestParseRetryAfter(t *testing.T) {
 	now := time.Date(2026, 11, 8, 12, 0, 0, 123, time.FixedZone("UTC+3", 3*3600))
 	future := now.UTC().Truncate(time.Second).Add(time.Minute)
@@ -48,6 +49,7 @@ func TestParseRetryAfter(t *testing.T) {
 	}
 }
 
+// TestFetchRateRetryAfter checks the retry time returned for provider errors.
 func TestFetchRateRetryAfter(t *testing.T) {
 	for _, status := range []int{429, 503, 500, 404} {
 		for _, header := range []string{"60", testRetrievedAt.UTC().Add(time.Minute).Format(http.TimeFormat), "invalid"} {

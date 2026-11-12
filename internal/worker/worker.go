@@ -20,7 +20,7 @@ const (
 	exhaustedBatchSize = 100
 )
 
-// Queue is the existing PostgreSQL job-queue contract, kept independent of SQL.
+// Queue lists the job operations a worker needs.
 type Queue interface {
 	ClaimNext(context.Context, time.Duration, int) (domain.UpdateJob, error)
 	ScheduleRetry(context.Context, int64, string, time.Time) error
@@ -28,12 +28,13 @@ type Queue interface {
 	FailExhausted(context.Context, int, int) (int64, error)
 }
 
-// Processor is implemented by the existing quote service.
+// Processor runs jobs through the quote service.
 type Processor interface {
+	// ProcessJob processes an update job using the given rate provider.
 	ProcessJob(context.Context, domain.UpdateJob, quoteservice.RateProvider) (quoteservice.ProcessResult, error)
 }
 
-// Worker consumes database jobs; at most one provider request is in flight.
+// Worker runs jobs with one provider request at a time.
 type Worker struct {
 	queue        Queue
 	processor    Processor
@@ -43,6 +44,7 @@ type Worker struct {
 	now          func() time.Time
 }
 
+// New checks the required dependencies and creates a worker.
 func New(queue Queue, processor Processor, provider quoteservice.RateProvider, logger *slog.Logger) (*Worker, error) {
 	if queue == nil || processor == nil || provider == nil || logger == nil {
 		return nil, errors.New("worker requires queue, processor, provider and logger")
@@ -58,7 +60,7 @@ func New(queue Queue, processor Processor, provider quoteservice.RateProvider, l
 	}, nil
 }
 
-// Run polls the durable queue. Cancellation stops new claims and cancels active work.
+// Run checks the saved job queue. On cancel, it stops taking jobs and cancels work.
 func (w *Worker) Run(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return nil
@@ -87,7 +89,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	}
 }
 
-// runOne finalizes expired/exhausted jobs and claims at most one due job.
+// runOne closes expired jobs with no tries left and takes at most one ready job.
 func (w *Worker) runOne(ctx context.Context) error {
 	maintenanceCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
 
@@ -130,9 +132,10 @@ func (w *Worker) runOne(ctx context.Context) error {
 	return w.processClaimed(ctx, job)
 }
 
+// processClaimed processes a job that the worker has claimed.
 func (w *Worker) processClaimed(ctx context.Context, job domain.UpdateJob) error {
-	// Provider has an 8s timeout. The 20s worker budget also includes SaveSuccess.
-	// A 30s database lease is deliberately longer than this entire attempt.
+	// The provider has 8 seconds. The worker has 20 seconds, including SaveSuccess.
+	// The database lease lasts 30 seconds, longer than one try.
 	attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
 
 	result, err := w.processor.ProcessJob(attemptCtx, job, w.provider)
@@ -140,8 +143,8 @@ func (w *Worker) processClaimed(ctx context.Context, job domain.UpdateJob) error
 	cancel()
 
 	if ctx.Err() != nil {
-		// On shutdown, do not write using an obsolete or canceled context.
-		// The tokenized lease makes recovery safe after the lease expires.
+		// When stopping, do not save changes with an old or canceled context.
+		// The lease token lets another worker safely take over after the lease ends.
 		return nil
 	}
 
@@ -152,12 +155,14 @@ func (w *Worker) processClaimed(ctx context.Context, job domain.UpdateJob) error
 			return nil
 		}
 
-		// Do not disguise database/unknown errors as provider failures. If the
-		// attempt did not commit, the leased row becomes claimable after expiry.
+		// Keep database and unknown errors separate from provider errors.
+		// If changes were not saved, another worker can take the job when the lease ends.
 		return fmt.Errorf("process quote update %d: %w", job.ID, err)
 	}
 
+	// If there is no failure, the job was processed successfully.
 	if result.Failure == nil {
+		// A retry needs a failure to explain why it is needed.
 		if result.Retryable {
 			return fmt.Errorf("invalid processing result for update %d: retry without failure", job.ID)
 		}
@@ -167,7 +172,7 @@ func (w *Worker) processClaimed(ctx context.Context, job domain.UpdateJob) error
 		return nil
 	}
 
-	// Log before finalization so a database error cannot hide the provider cause.
+	// Log the provider error before saving the final status.
 	if result.Diagnostic != nil {
 		w.logger.Warn("quote provider attempt failed", "update_id", job.ID,
 			"pair", job.Pair, "attempt", job.Attempts, "code", result.Failure.Code,

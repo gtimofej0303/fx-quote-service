@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParsePriceValidAndCanonical checks valid prices and their standard text format.
 func TestParsePriceValidAndCanonical(t *testing.T) {
 	tests := []struct{ input, want string }{
 		{"61.9600", "61.96"},
@@ -22,6 +23,7 @@ func TestParsePriceValidAndCanonical(t *testing.T) {
 	}
 }
 
+// TestParsePriceRejectsInvalidOrUnrepresentable checks that invalid prices and values outside the limits are rejected.
 func TestParsePriceRejectsInvalidOrUnrepresentable(t *testing.T) {
 	inputs := []string{
 		"", "0", "0.000000000000000000", "-1", "+1", "NaN", "Inf", "1e-3",

@@ -27,6 +27,7 @@ type fakeQuoteService struct {
 	latestFn  func(context.Context, string) (domain.Quote, error)
 }
 
+// RequestUpdate calls the test function that requests a job.
 func (f *fakeQuoteService) RequestUpdate(ctx context.Context, pair string, key *string) (domain.UpdateJob, error) {
 	if f.requestFn == nil {
 		panic("unexpected RequestUpdate")
@@ -35,6 +36,7 @@ func (f *fakeQuoteService) RequestUpdate(ctx context.Context, pair string, key *
 	return f.requestFn(ctx, pair, key)
 }
 
+// GetUpdate calls the test function that gets a job result.
 func (f *fakeQuoteService) GetUpdate(ctx context.Context, id int64) (quoteservice.Update, error) {
 	if f.getFn == nil {
 		panic("unexpected GetUpdate")
@@ -43,6 +45,7 @@ func (f *fakeQuoteService) GetUpdate(ctx context.Context, id int64) (quoteservic
 	return f.getFn(ctx, id)
 }
 
+// GetLatestQuote calls the test function that gets the latest quote.
 func (f *fakeQuoteService) GetLatestQuote(ctx context.Context, pair string) (domain.Quote, error) {
 	if f.latestFn == nil {
 		panic("unexpected GetLatestQuote")
@@ -55,6 +58,7 @@ var _ QuoteService = (*fakeQuoteService)(nil)
 
 var httpTestTime = time.Date(2026, 11, 6, 12, 0, 0, 0, time.FixedZone("EET", 2*60*60))
 
+// newQuoteTestRouter creates a test router with a ready database and the given service.
 func newQuoteTestRouter(svc QuoteService) http.Handler {
 	ready := &atomic.Bool{}
 	ready.Store(true)
@@ -62,6 +66,7 @@ func newQuoteTestRouter(svc QuoteService) http.Handler {
 	return NewRouter(fakePinger{}, ready, slog.New(slog.NewTextHandler(io.Discard, nil)), svc)
 }
 
+// doRequest sends a test request and checks the JSON response and request ID.
 func doRequest(t *testing.T, handler http.Handler, method, path, body, contentType string, headers http.Header) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 
@@ -104,6 +109,7 @@ func doRequest(t *testing.T, handler http.Handler, method, path, body, contentTy
 	return rec, result
 }
 
+// assertError checks the HTTP status and JSON error fields.
 func assertError(t *testing.T, rec *httptest.ResponseRecorder, result map[string]any, status int, code string) {
 	t.Helper()
 
@@ -121,6 +127,7 @@ func assertError(t *testing.T, rec *httptest.ResponseRecorder, result map[string
 	}
 }
 
+// httpPendingJob creates a valid waiting job for HTTP tests.
 func httpPendingJob(t *testing.T) domain.UpdateJob {
 	t.Helper()
 
@@ -132,6 +139,7 @@ func httpPendingJob(t *testing.T) domain.UpdateJob {
 	return job
 }
 
+// httpSucceededJob creates a valid successful job for HTTP tests.
 func httpSucceededJob(t *testing.T) domain.UpdateJob {
 	t.Helper()
 
@@ -149,6 +157,7 @@ func httpSucceededJob(t *testing.T) domain.UpdateJob {
 	return job
 }
 
+// httpFailedJob creates a valid failed job for HTTP tests.
 func httpFailedJob(t *testing.T) domain.UpdateJob {
 	t.Helper()
 
@@ -163,6 +172,7 @@ func httpFailedJob(t *testing.T) domain.UpdateJob {
 	return job
 }
 
+// httpQuote creates a valid quote for HTTP tests.
 func httpQuote(t *testing.T) domain.Quote {
 	t.Helper()
 
@@ -184,6 +194,7 @@ func httpQuote(t *testing.T) domain.Quote {
 	return q
 }
 
+// TestPOSTCreatesPendingUpdateAndSetsLocation checks that POST creates a waiting job and returns its URL.
 func TestPOSTCreatesPendingUpdateAndSetsLocation(t *testing.T) {
 	calls := 0
 
@@ -208,6 +219,7 @@ func TestPOSTCreatesPendingUpdateAndSetsLocation(t *testing.T) {
 	}
 }
 
+// TestPOSTWithoutKeyAndReplayStayInService checks that the service handles requests without keys and repeated requests.
 func TestPOSTWithoutKeyAndReplayStayInService(t *testing.T) {
 	calls := 0
 
@@ -235,6 +247,7 @@ func TestPOSTWithoutKeyAndReplayStayInService(t *testing.T) {
 	}
 }
 
+// TestPOSTValidationRejectsBeforeService checks that invalid requests are rejected before calling the service.
 func TestPOSTValidationRejectsBeforeService(t *testing.T) {
 	svc := &fakeQuoteService{}
 	router := newQuoteTestRouter(svc)
@@ -277,6 +290,7 @@ func TestPOSTValidationRejectsBeforeService(t *testing.T) {
 	}
 }
 
+// TestPOSTBodyLimitAtBoundaryAndUnknownLength checks the body size limit, including requests without a known length.
 func TestPOSTBodyLimitAtBoundaryAndUnknownLength(t *testing.T) {
 	base := `{"pair":"EUR/EGP"}`
 	calls := 0
@@ -325,9 +339,13 @@ func TestPOSTBodyLimitAtBoundaryAndUnknownLength(t *testing.T) {
 
 type sqlStateFailure string
 
-func (e sqlStateFailure) Error() string    { return "database error" }
+// Error returns the test database error message.
+func (e sqlStateFailure) Error() string { return "database error" }
+
+// SQLState returns the test database error code.
 func (e sqlStateFailure) SQLState() string { return string(e) }
 
+// TestPOSTMapsServiceErrors checks the HTTP status and error code for each service error.
 func TestPOSTMapsServiceErrors(t *testing.T) {
 	cases := []struct {
 		err    error
@@ -363,6 +381,7 @@ func TestPOSTMapsServiceErrors(t *testing.T) {
 	}
 }
 
+// TestGetUpdateAllStatesAndPublicSchemas checks the JSON response for each job status.
 func TestGetUpdateAllStatesAndPublicSchemas(t *testing.T) {
 	pending := httpPendingJob(t)
 
@@ -440,6 +459,7 @@ func TestGetUpdateAllStatesAndPublicSchemas(t *testing.T) {
 	}
 }
 
+// TestGetUpdateInvalidIDAndRoutes checks invalid job IDs and request paths.
 func TestGetUpdateInvalidIDAndRoutes(t *testing.T) {
 	router := newQuoteTestRouter(&fakeQuoteService{})
 
@@ -463,6 +483,7 @@ func TestGetUpdateInvalidIDAndRoutes(t *testing.T) {
 	assertError(t, rec, result, 404, "route_not_found")
 }
 
+// TestGetUpdateNotFoundAndInconsistentState checks missing jobs and successful jobs without quotes.
 func TestGetUpdateNotFoundAndInconsistentState(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
@@ -489,6 +510,7 @@ func TestGetUpdateNotFoundAndInconsistentState(t *testing.T) {
 	assertError(t, rec, result, 500, "internal_error")
 }
 
+// TestLatestQuoteSuccessValidationAndNoRate checks the latest quote, invalid input, and missing rates.
 func TestLatestQuoteSuccessValidationAndNoRate(t *testing.T) {
 	q := httpQuote(t)
 	calls := 0
@@ -527,6 +549,7 @@ func TestLatestQuoteSuccessValidationAndNoRate(t *testing.T) {
 	}
 }
 
+// TestLatestQuoteMapsErrors checks HTTP responses for errors when getting the latest quote.
 func TestLatestQuoteMapsErrors(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
@@ -548,6 +571,7 @@ func TestLatestQuoteMapsErrors(t *testing.T) {
 	}
 }
 
+// TestKnownRoutesReturnJSON405AndAllow checks that wrong HTTP methods return JSON 405 and list allowed methods.
 func TestKnownRoutesReturnJSON405AndAllow(t *testing.T) {
 	router := newQuoteTestRouter(&fakeQuoteService{})
 

@@ -10,6 +10,7 @@ import (
 	domain "github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
+// TestFetchRateAcceptsAdditionalFields checks that extra JSON fields are allowed.
 func TestFetchRateAcceptsAdditionalFields(t *testing.T) {
 	for _, extra := range []string{`null`, `true`, `123`, `1e400`, `"text"`, `[]`, `[1,{"x":true}]`, `{"provider":"test","nested":{"x":1}}`} {
 		t.Run(extra, func(t *testing.T) {
@@ -24,6 +25,7 @@ func TestFetchRateAcceptsAdditionalFields(t *testing.T) {
 	}
 }
 
+// TestAdditionalFieldsDoNotHideInvalidRequiredFields checks that extra fields do not hide errors in required fields.
 func TestAdditionalFieldsDoNotHideInvalidRequiredFields(t *testing.T) {
 	cases := []string{
 		`{"metadata":{},"base":"USD","quote":"EUR","rate":1}`,

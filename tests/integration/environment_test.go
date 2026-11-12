@@ -12,6 +12,7 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/repository/postgres"
 )
 
+// TestOpenWithPostgresEnvironment checks that a database connection works with PG* settings.
 func TestOpenWithPostgresEnvironment(t *testing.T) {
 	_, _, ctx := openTestDatabase(t)
 	cfg, err := pgx.ParseConfig(os.Getenv("TEST_DATABASE_URL"))

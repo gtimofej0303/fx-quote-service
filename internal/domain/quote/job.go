@@ -26,8 +26,6 @@ func (s JobStatus) Valid() bool {
 
 func (s JobStatus) IsTerminal() bool { return s == JobSucceeded || s == JobFailed }
 
-// ValidateStatusTransition describes business state changes, not database
-// concurrency. An expired lease can be reassigned while status stays processing.
 func ValidateStatusTransition(from, to JobStatus) error {
 	if !from.Valid() || !to.Valid() {
 		return fmt.Errorf("%w: %q -> %q", ErrInvalidJobStatus, from, to)
@@ -77,8 +75,6 @@ func (f UpdateFailure) Validate() error {
 	return nil
 }
 
-// ValidateIdempotencyKey validates a PROVIDED key. Omission is represented
-// by nil, not by an empty string. Keys are case-sensitive and never trimmed.
 func ValidateIdempotencyKey(key string) error {
 	if len(key) == 0 || len(key) > 128 {
 		return fmt.Errorf("%w: expected length 1..128", ErrInvalidIdempotencyKey)
@@ -97,15 +93,11 @@ func ValidateIdempotencyKey(key string) error {
 	return nil
 }
 
-// Lease represents an exclusive, renewable claim on a processing job.
-// The repository is responsible for checking token ownership atomically.
 type Lease struct {
-	Token string // UUID string from the database claim operation
+	Token string // UUID returned when the database assigns the job
 	Until time.Time
 }
 
-// UpdateJob mirrors the persisted state needed by later repository/service
-// stages. Public fields make hydration straightforward. SQL operations enforce atomic transitions.
 type UpdateJob struct {
 	ID             int64
 	Pair           CurrencyPair

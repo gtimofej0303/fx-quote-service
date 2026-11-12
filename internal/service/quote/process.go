@@ -15,7 +15,7 @@ var (
 	ErrInvalidProviderError = errors.New("provider returned an invalid failure classification")
 )
 
-// ProviderError describes an expected failure from the rate provider.
+// ProviderError holds an expected error from the rate provider.
 type ProviderError struct {
 	Code           domain.FailureCode
 	Message        string
@@ -23,7 +23,7 @@ type ProviderError struct {
 	RetryNotBefore time.Time
 }
 
-// Error implements the error interface.
+// Error returns the error message.
 func (e *ProviderError) Error() string {
 	if e == nil {
 		return "quote provider error"
@@ -40,7 +40,7 @@ func (e *ProviderError) Error() string {
 	return "quote provider error"
 }
 
-// Unwrap returns the underlying error.
+// Unwrap returns the original error.
 func (e *ProviderError) Unwrap() error {
 	if e == nil {
 		return nil
@@ -49,15 +49,15 @@ func (e *ProviderError) Unwrap() error {
 	return e.Cause
 }
 
-// ProcessResult describes the outcome of a single processing attempt.
+// ProcessResult holds the result of one try.
 type ProcessResult struct {
 	Failure        *domain.UpdateFailure
 	Retryable      bool
 	RetryNotBefore time.Time
-	Diagnostic     error `json:"-"` // Internal cause; never part of the public failure.
+	Diagnostic     error `json:"-"` // Internal error; do not show it in the API response.
 }
 
-// ProcessJob processes an already claimed quote update job.
+// ProcessJob runs a quote update job that a worker has taken.
 func (s *Service) ProcessJob(ctx context.Context, job domain.UpdateJob, provider RateProvider) (ProcessResult, error) {
 	if err := job.Validate(); err != nil {
 		return ProcessResult{}, fmt.Errorf("%w: %w", ErrInvalidClaimedJob, err)
@@ -77,7 +77,7 @@ func (s *Service) ProcessJob(ctx context.Context, job domain.UpdateJob, provider
 
 	fetched, err := provider.FetchRate(ctx, job.Pair)
 
-	// Cancellation from shutdown or a worker deadline
+	// Handle cancellation when the worker stops or runs out of time.
 	if ctx.Err() != nil {
 		return ProcessResult{}, ctx.Err()
 	}
@@ -96,7 +96,7 @@ func (s *Service) ProcessJob(ctx context.Context, job domain.UpdateJob, provider
 		return ProcessResult{Failure: &failure, Diagnostic: err}, nil
 	}
 
-	// SaveSuccess atomically checks the lease and writes quote + succeeded.
+	// SaveSuccess checks the lease and saves the quote and success status in one step.
 	if err := s.repository.SaveSuccess(ctx, q, job.Lease.Token); err != nil {
 		return ProcessResult{}, fmt.Errorf("save quote for update %d: %w", job.ID, err)
 	}
@@ -104,7 +104,7 @@ func (s *Service) ProcessJob(ctx context.Context, job domain.UpdateJob, provider
 	return ProcessResult{}, nil
 }
 
-// classifyProviderError converts a provider error into a processing result.
+// classifyProviderError turns a provider error into a job result.
 func classifyProviderError(err error) (ProcessResult, error) {
 	var providerErr *ProviderError
 
@@ -131,7 +131,7 @@ func classifyProviderError(err error) (ProcessResult, error) {
 		}, nil
 	}
 
-	// Unclassified errors are treated conservatively as temporary unavailable.
+	// Treat unknown errors as temporary provider problems.
 	code := domain.FailureProviderUnavailable
 	message := "Quote provider is temporarily unavailable"
 
@@ -145,7 +145,7 @@ func classifyProviderError(err error) (ProcessResult, error) {
 	return ProcessResult{Failure: &failure, Retryable: true, Diagnostic: err}, nil
 }
 
-// isRetryableProviderCode reports whether a provider failure can be retried.
+// isRetryableProviderCode checks if we can try again after this provider error.
 func isRetryableProviderCode(code domain.FailureCode) bool {
 	switch code {
 	case domain.FailureProviderTimeout, domain.FailureProviderUnavailable, domain.FailureProviderRateLimited:

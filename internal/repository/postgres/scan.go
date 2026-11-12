@@ -8,12 +8,12 @@ import (
 	"github.com/gtimofej0303/fx-quote-service/internal/domain/quote"
 )
 
-// rowScanner allows the same conversion for QueryRowContext and tx.QueryRowContext.
+// rowScanner reads rows from QueryRowContext and tx.QueryRowContext.
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-// scanJob converts nullable SQL columns to the already-defined domain model.
+// scanJob reads database fields, including NULL, into a job.
 func scanJob(row rowScanner) (quote.UpdateJob, error) {
 	var j quote.UpdateJob
 	var pair, status string
@@ -64,7 +64,7 @@ func scanJob(row rowScanner) (quote.UpdateJob, error) {
 	return j, nil
 }
 
-// Scan numeric/date as PostgreSQL text.
+// Read numbers and dates as text from PostgreSQL.
 func scanQuote(row rowScanner) (quote.Quote, error) {
 	var id int64
 	var pair, priceText, sourceDateText string

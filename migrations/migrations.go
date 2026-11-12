@@ -2,7 +2,7 @@ package migrations
 
 import "embed"
 
-// FS contains versioned SQL migrations compiled into the migrate binary.
+// FS holds the SQL files used to update the database.
 //
 //go:embed *.sql
 var FS embed.FS

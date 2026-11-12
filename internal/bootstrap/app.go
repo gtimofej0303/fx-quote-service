@@ -19,17 +19,19 @@ import (
 )
 
 func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	const workerCount = 2 // Number of concurrent worker loops in this application process.
+	const workerCount = 2
 
 	db, err := postgres.Open(cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
+
 	defer db.Close()
 
 	startupCtx, cancelStartup := context.WithTimeout(ctx, 10*time.Second)
 	pingErr := db.PingContext(startupCtx)
 	cancelStartup()
+
 	if pingErr != nil {
 		return fmt.Errorf("connect to postgres: %w", pingErr)
 	}
@@ -38,6 +40,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTPAddr, err)
 	}
+
 	defer listener.Close()
 
 	repo := postgres.New(db)
@@ -47,7 +50,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return fmt.Errorf("initialize quote service: %w", err)
 	}
 
-	// Initialize all workers before starting goroutines, so startup is all-or-nothing.
+	// Create all workers first. Start them only if all are ready.
 	workers := make([]*worker.Worker, 0, workerCount)
 
 	for i := 0; i < workerCount; i++ {
@@ -118,7 +121,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 
 	ready.Store(false)
-	stopWorker() // Stop all claims and cancel all in-flight work.
+	stopWorker() // Stop taking jobs and cancel running work.
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
 	shutdownErr := server.Shutdown(shutdownCtx)
@@ -136,7 +139,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		}
 	}
 
-	// One completion signal per worker; none can be forgotten on shutdown.
+	// Wait for every worker to stop.
 	for workersStopped < workerCount {
 		result := <-workerErrors
 		workersStopped++

@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// SourceDate is a timezone-free calendar day (YYYY-MM-DD), not a timestamp.
-// It maps to PostgreSQL DATE and to the OpenAPI source_date field.
+// SourceDate is a timezone-free calendar day (YYYY-MM-DD).
 type SourceDate string
 
 func ParseSourceDate(raw string) (SourceDate, error) {
@@ -39,8 +38,7 @@ func (d SourceDate) Validate() error {
 	return err
 }
 
-// Quote is a successfully retrieved value for a specific update job.
-// UpdatedAt is retrieval time, not source rate date or job completion time.
+// Quote represents a successfully retrieved rate for one update job.
 type Quote struct {
 	UpdateID   int64
 	Pair       CurrencyPair
@@ -85,9 +83,8 @@ func (q Quote) Validate() error {
 		return fmt.Errorf("%w: missing retrieval timestamp", ErrInvalidQuote)
 	}
 
-	// Allow one calendar day for source time zones ahead of UTC. Compare to
-	// the recorded retrieval time so historical validation never changes.
-	sourceDay, _ := time.Parse("2006-01-02", q.SourceDate.String()) // validated above
+	// Allow the provider's date to be up to one day ahead of the UTC retrieval date.
+	sourceDay, _ := time.Parse("2006-01-02", q.SourceDate.String())
 	retrieved := q.UpdatedAt.UTC()
 
 	latestAllowed := time.Date(retrieved.Year(), retrieved.Month(), retrieved.Day(),
@@ -99,9 +96,7 @@ func (q Quote) Validate() error {
 	return nil
 }
 
-// NewerThan matches the latest-query ordering: source_date DESC,
-// updated_at DESC, update_id DESC. Call only on validated quotes.
-// Quotes for different currency pairs are not comparable.
+// NewerThan reports whether this quote is newer than another quote for the same pair.
 func (q Quote) NewerThan(other Quote) bool {
 	if q.Pair != other.Pair {
 		return false

@@ -15,6 +15,7 @@ type fakeRateProvider struct {
 	fetchFn func(context.Context, domain.CurrencyPair) (service.FetchedRate, error)
 }
 
+// FetchRate returns a rate or error from the test provider.
 func (f *fakeRateProvider) FetchRate(ctx context.Context, pair domain.CurrencyPair) (service.FetchedRate, error) {
 	if f.fetchFn == nil {
 		panic("unexpected FetchRate")
@@ -25,7 +26,7 @@ func (f *fakeRateProvider) FetchRate(ctx context.Context, pair domain.CurrencyPa
 
 var _ service.RateProvider = (*fakeRateProvider)(nil)
 
-// rate creates a valid fetched rate for tests.
+// rate creates a valid provider rate for tests.
 func rate(t *testing.T) service.FetchedRate {
 	t.Helper()
 
@@ -34,7 +35,7 @@ func rate(t *testing.T) service.FetchedRate {
 	return service.FetchedRate{Price: q.Price, SourceDate: q.SourceDate, UpdatedAt: q.UpdatedAt}
 }
 
-// TestProcessJobWritesExactlyOneSuccessfulQuote checks successful job processing.
+// Check that a successful job saves exactly one quote.
 func TestProcessJobWritesExactlyOneSuccessfulQuote(t *testing.T) {
 	ctx := context.Background()
 	job := processingJob(t)
@@ -67,7 +68,7 @@ func TestProcessJobWritesExactlyOneSuccessfulQuote(t *testing.T) {
 	}
 }
 
-// TestProcessJobRejectsUnclaimedAndMissingProvider checks invalid processing inputs.
+// Check jobs without a lease and services without a provider.
 func TestProcessJobRejectsUnclaimedAndMissingProvider(t *testing.T) {
 	s := newService(t, &fakeRepository{})
 	provider := &fakeRateProvider{}
@@ -87,7 +88,7 @@ func TestProcessJobRejectsUnclaimedAndMissingProvider(t *testing.T) {
 	}
 }
 
-// TestProcessJobClassifiesTypedProviderFailures checks known provider errors.
+// Check known provider error types.
 func TestProcessJobClassifiesTypedProviderFailures(t *testing.T) {
 	cases := []struct {
 		code      domain.FailureCode
@@ -132,7 +133,7 @@ func TestProcessJobClassifiesTypedProviderFailures(t *testing.T) {
 	}
 }
 
-// TestProcessJobClassifiesUnspecifiedProviderFailures checks untyped errors.
+// Check provider errors without a known type.
 func TestProcessJobClassifiesUnspecifiedProviderFailures(t *testing.T) {
 	cases := []struct {
 		name string
@@ -160,7 +161,7 @@ func TestProcessJobClassifiesUnspecifiedProviderFailures(t *testing.T) {
 	}
 }
 
-// TestProcessJobRejectsInvalidProviderError checks invalid error classifications
+// Check provider errors with invalid codes.
 func TestProcessJobRejectsInvalidProviderError(t *testing.T) {
 	for _, tc := range []service.ProviderError{
 		{Code: "invalid", Message: "bad"},
@@ -178,7 +179,7 @@ func TestProcessJobRejectsInvalidProviderError(t *testing.T) {
 	}
 }
 
-// TestProcessJobRejectsInvalidFetchedRateWithoutStorageWrite checks invalid rate data.
+// Check that invalid rates are not saved.
 func TestProcessJobRejectsInvalidFetchedRateWithoutStorageWrite(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -207,7 +208,7 @@ func TestProcessJobRejectsInvalidFetchedRateWithoutStorageWrite(t *testing.T) {
 	}
 }
 
-// TestProcessJobPropagatesPersistenceAndLeaseErrors checks repository errors.
+// Check database and lease errors.
 func TestProcessJobPropagatesPersistenceAndLeaseErrors(t *testing.T) {
 	stale := service.ErrLeaseLost
 
@@ -224,7 +225,7 @@ func TestProcessJobPropagatesPersistenceAndLeaseErrors(t *testing.T) {
 	}
 }
 
-// TestProcessJobDoesNotFinalizeAfterCancellation checks context cancellation.
+// Check that canceling stops the job before saving.
 func TestProcessJobDoesNotFinalizeAfterCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -236,7 +237,7 @@ func TestProcessJobDoesNotFinalizeAfterCancellation(t *testing.T) {
 	ctx, cancel = context.WithCancel(context.Background())
 
 	provider := &fakeRateProvider{fetchFn: func(context.Context, domain.CurrencyPair) (service.FetchedRate, error) {
-		cancel() // shutdown while the provider request is underway
+		cancel() // stop while the provider request is running
 		return rate(t), nil
 	}}
 
